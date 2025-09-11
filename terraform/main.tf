@@ -1,10 +1,5 @@
-locals {
-  school_list = split(",", var.schools)
-}
-
-
 module "schools" {
-  for_each  = toset(local.school_list)
+  for_each  = toset(var.schools)
   source    = "./modules/school"
   school_id = each.value
   project_name = var.project_name

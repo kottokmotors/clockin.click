@@ -65,9 +65,11 @@ jobs:
       # Step 7: Terraform apply environment-specific infra (DynamoDB + IAM)
       - name: Terraform Apply Environment Infra
         run: |
+          # Convert comma-separated secret into a JSON-style list
+          SCHOOLS_JSON=$(echo "[\"$(echo $SCHOOLS | sed 's/,/","/g')\"]")
           terraform -chdir=${{ env.TERRAFORM_DIR }} apply \
             -auto-approve \
-            -var="schools=${SCHOOLS}" \
+            -var="schools=${SCHOOLS_JSON}" \
             -target=aws_dynamodb_table.users \
             -target=aws_dynamodb_table.time_attendance \
             -target=aws_iam_role.apprunner_role
@@ -91,4 +93,6 @@ jobs:
 
       # Step 10: Terraform apply App Runner + Route 53
       - name: Terraform Apply App Runner + Route53
-        run: terraform -chdir=${{ env.TERRAFORM_DIR }} apply -auto-approve -var="schools=${SCHOOLS}"
+        run: |
+          SCHOOLS_JSON=$(echo "[\"$(echo $SCHOOLS | sed 's/,/","/g')\"]")
+          terraform -chdir=${{ env.TERRAFORM_DIR }} apply -auto-approve -var="schools=${SCHOOLS_JSON}"
