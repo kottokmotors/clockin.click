@@ -1,6 +1,10 @@
+locals {
+  school_list = split(",", var.schools)
+}
+
 
 module "schools" {
-  for_each  = toset(var.schools)
+  for_each  = toset(local.school_list)
   source    = "./modules/school"
   school_id = each.value
   project_name = var.project_name
@@ -9,6 +13,6 @@ module "schools" {
 }
 
 output "school_service_urls" {
-  value = { for s, m in module.schools : s => m.apprunner_service_url }
+  value = { for s, m in module.schools : s => m.apprunner_url }
 }
 
