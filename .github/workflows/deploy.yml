@@ -71,7 +71,7 @@ jobs:
           TARGETS=""
       
           # Loop through schools and add the resource addresses dynamically
-          for school in SCHOOLS_JSON; do
+          for school in $SCHOOLS_JSON; do
           TARGETS="$TARGETS -target=module.schools[\"$school\"].aws_dynamodb_table.users"
           TARGETS="$TARGETS -target=module.schools[\"$school\"].aws_dynamodb_table.time_attendance"
           TARGETS="$TARGETS -target=module.schools[\"$school\"].aws_iam_role.apprunner_role"
