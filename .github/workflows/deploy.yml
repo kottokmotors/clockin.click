@@ -1,0 +1,90 @@
+name: Deploy Multi-School Next.js App
+
+on:
+  push:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    env:
+      AWS_REGION: us-east-1
+      AWS_ACCOUNT_ID: ${{ secrets.AWS_ACCOUNT_ID }}
+      ECR_REPO: "clockinclick"
+      TERRAFORM_DIR: "terraform"
+
+    steps:
+      # Step 0: Checkout repo
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      # Step 1: Determine schools and workspace based on branch using secrets
+      - name: Set schools based on branch
+        run: |
+          if [[ "${GITHUB_REF##*/}" == "main" ]]; then
+            echo "SCHOOLS=${{ secrets.PROD_SCHOOLS }}" >> $GITHUB_ENV
+            echo "WORKSPACE=production" >> $GITHUB_ENV
+          else
+            echo "SCHOOLS=${{ secrets.TEST_SCHOOLS }}" >> $GITHUB_ENV
+            echo "WORKSPACE=testing" >> $GITHUB_ENV
+          fi
+
+      # Step 2: Setup Terraform
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v2
+
+      # Step 3: Terraform init
+      - name: Terraform Init
+        run: terraform -chdir=${{ env.TERRAFORM_DIR }} init
+
+      # Step 4: Create or ensure global ECR (only once, main branch)
+      - name: Terraform Apply Global ECR
+        if: github.ref == 'refs/heads/main'
+        run: |
+          terraform -chdir=${{ env.TERRAFORM_DIR }} apply \
+            -auto-approve \
+            -target=aws_ecr_repository.${ECR_REPO}
+
+      # Step 5: Select or create Terraform workspace
+      - name: Select Terraform workspace
+        run: |
+          terraform -chdir=${{ env.TERRAFORM_DIR }} workspace select $WORKSPACE || \
+          terraform -chdir=${{ env.TERRAFORM_DIR }} workspace new $WORKSPACE
+          echo "Using Terraform workspace: $WORKSPACE"
+
+      # Step 6: Terraform apply environment-specific infra (DynamoDB + IAM)
+      - name: Terraform Apply Environment Infra
+        run: |
+          terraform -chdir=${{ env.TERRAFORM_DIR }} apply \
+            -auto-approve \
+            -var="schools=${SCHOOLS}" \
+            -target=aws_dynamodb_table.users \
+            -target=aws_dynamodb_table.time_attendance \
+            -target=aws_iam_role.apprunner_role
+
+      # Step 7: Configure AWS credentials
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v2
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      # Step 8: Login to ECR
+      - name: Login to ECR
+        run: |
+          aws ecr get-login-password --region ${{ env.AWS_REGION }} | \
+          docker login --username AWS --password-stdin ${{ env.AWS_ACCOUNT_ID }}.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com
+
+      # Step 9: Build & push Docker images per school
+      - name: Build and Push Docker Images
+        run: |
+          for school in $SCHOOLS; do
+            IMAGE_URI="${{ env.AWS_ACCOUNT_ID }}.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com/${ECR_REPO}:${school}-latest"
+            echo "Building and pushing Docker image for $school -> $IMAGE_URI"
+            docker build -t ${school}-app ./  # adjust context if needed
+            docker tag ${school}-app $IMAGE_URI
+            docker push $IMAGE_URI
+          done
+
+      # Step 10: Terraform apply App Runner + Route 53
+      - name: Terraform Apply App Runner + Route53
+        run: terraform -chdir=${{ env.TERRAFORM_DIR }} apply -auto-approve -var="schools=${SCHOOLS}"
