@@ -92,10 +92,11 @@ jobs:
       - name: Build and Push Docker Images
         run: |
           for school in $SCHOOLS; do
-            IMAGE_URI="${{ env.AWS_ACCOUNT_ID }}.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com/${ECR_REPO}:${school}-latest"
+            SCHOOL_LOWER=$(echo $school | tr '[:upper:]' '[:lower:]' | tr ' ' '-')
+            IMAGE_URI="${{ env.AWS_ACCOUNT_ID }}.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com/${ECR_REPO}:${SCHOOL_LOWER}-latest"
             echo "Building and pushing Docker image for $school -> $IMAGE_URI"
-            docker build -t ${school}-app ./  # adjust context if needed
-            docker tag ${school}-app $IMAGE_URI
+            docker build -t ${SCHOOL_LOWER}-app ./  # adjust context if needed
+            docker tag ${SCHOOL_LOWER}-app $IMAGE_URI
             docker push $IMAGE_URI
           done
 
