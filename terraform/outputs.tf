@@ -1,4 +1,4 @@
-output "apprunner_url" {
-  value = aws_apprunner_service.timekeeper_service.service_url
+output "schools_apprunner_urls" {
+  value = { for school, mod in module.schools : school => mod.apprunner_url }
 }
 
