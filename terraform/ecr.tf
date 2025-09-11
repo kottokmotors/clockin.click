@@ -1,4 +1,4 @@
-resource "aws_ecr_repository" "timekeeper_app" {
+resource "aws_ecr_repository" "clockinclick" {
   name                 = var.project_name
   image_tag_mutability = "MUTABLE"
 
@@ -8,6 +8,6 @@ resource "aws_ecr_repository" "timekeeper_app" {
 }
 
 output "ecr_repository_url" {
-  value = aws_ecr_repository.timekeeper_app.repository_url
+  value = aws_ecr_repository.clockinclick.repository_url
 }
 
