@@ -3,6 +3,10 @@ name: Deploy Multi-School Next.js App
 on:
   push:
 
+permissions:
+  id-token: write
+  contents: read
+
 jobs:
   deploy:
     runs-on: ubuntu-latest
