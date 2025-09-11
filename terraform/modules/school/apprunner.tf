@@ -15,4 +15,9 @@ resource "aws_apprunner_service" "service" {
       }
     }
   }
+
+  tags = {
+    client = var.school_id
+    application = var.project_name
+  }
 }

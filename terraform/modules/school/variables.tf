@@ -8,14 +8,6 @@ variable "docker_image" {
   description = "Full ECR Docker image URI for this school"
 }
 
-variable "tags" {
-  type = map(string)
-  default = {
-    client = var.school_id
-    application = var.project_name
-  }
-}
-
 variable "project_name" {
   type = string
   description = "Identifier for the project."

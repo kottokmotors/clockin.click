@@ -13,7 +13,10 @@ resource "aws_iam_role" "apprunner_role" {
     }]
   })
 
-  tags = var.tags
+  tags = {
+    client = var.school_id
+    application = var.project_name
+  }
 }
 
 # IAM policy granting access to this school's DynamoDB tables

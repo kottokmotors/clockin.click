@@ -9,7 +9,10 @@ resource "aws_dynamodb_table" "users" {
     type = "S"
   }
 
-  tags = var.tags
+  tags = {
+    client = var.school_id
+    application = var.project_name
+  }
 }
 
 # DynamoDB TimeAttendance table
@@ -23,5 +26,8 @@ resource "aws_dynamodb_table" "time_attendance" {
     type = "S"
   }
 
-  tags = var.tags
+  tags = {
+    client = var.school_id
+    application = var.project_name
+  }
 }
