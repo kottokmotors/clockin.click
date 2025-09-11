@@ -67,12 +67,20 @@ jobs:
         run: |
           # Convert comma-separated secret into a JSON-style list
           SCHOOLS_JSON=$(echo "[\"$(echo $SCHOOLS | sed 's/,/","/g')\"]")
+          # Initialize an empty string for all targets
+          TARGETS=""
+      
+          # Loop through schools and add the resource addresses dynamically
+          for school in SCHOOLS_JSON; do
+          TARGETS="$TARGETS -target=module.schools[\"$school\"].aws_dynamodb_table.users"
+          TARGETS="$TARGETS -target=module.schools[\"$school\"].aws_dynamodb_table.time_attendance"
+          TARGETS="$TARGETS -target=module.schools[\"$school\"].aws_iam_role.apprunner_role"
+          done
+          
           terraform -chdir=${{ env.TERRAFORM_DIR }} apply \
             -auto-approve \
             -var="schools=${SCHOOLS_JSON}" \
-            -target=aws_dynamodb_table.users \
-            -target=aws_dynamodb_table.time_attendance \
-            -target=aws_iam_role.apprunner_role
+            $targets
 
       # Step 8: Login to ECR
       - name: Login to ECR
