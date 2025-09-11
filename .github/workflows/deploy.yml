@@ -80,7 +80,7 @@ jobs:
           terraform -chdir=${{ env.TERRAFORM_DIR }} apply \
             -auto-approve \
             -var="schools=${SCHOOLS_JSON}" \
-            $targets
+            $TARGETS
 
       # Step 8: Login to ECR
       - name: Login to ECR
