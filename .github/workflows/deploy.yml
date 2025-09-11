@@ -17,7 +17,14 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v3
 
-      # Step 1: Determine schools and workspace based on branch using secrets
+      # Step 1: Configure AWS credentials
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v2
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      # Step 2: Determine schools and workspace based on branch using secrets
       - name: Set schools based on branch
         run: |
           if [[ "${GITHUB_REF##*/}" == "main" ]]; then
@@ -28,15 +35,15 @@ jobs:
             echo "WORKSPACE=testing" >> $GITHUB_ENV
           fi
 
-      # Step 2: Setup Terraform
+      # Step 3: Setup Terraform
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v2
 
-      # Step 3: Terraform init
+      # Step 4: Terraform init
       - name: Terraform Init
         run: terraform -chdir=${{ env.TERRAFORM_DIR }} init
 
-      # Step 4: Create or ensure global ECR (only once, main branch)
+      # Step 5: Create or ensure global ECR (only once, main branch)
       - name: Terraform Apply Global ECR
         if: github.ref == 'refs/heads/main'
         run: |
@@ -44,14 +51,14 @@ jobs:
             -auto-approve \
             -target=aws_ecr_repository.${ECR_REPO}
 
-      # Step 5: Select or create Terraform workspace
+      # Step 6: Select or create Terraform workspace
       - name: Select Terraform workspace
         run: |
           terraform -chdir=${{ env.TERRAFORM_DIR }} workspace select $WORKSPACE || \
           terraform -chdir=${{ env.TERRAFORM_DIR }} workspace new $WORKSPACE
           echo "Using Terraform workspace: $WORKSPACE"
 
-      # Step 6: Terraform apply environment-specific infra (DynamoDB + IAM)
+      # Step 7: Terraform apply environment-specific infra (DynamoDB + IAM)
       - name: Terraform Apply Environment Infra
         run: |
           terraform -chdir=${{ env.TERRAFORM_DIR }} apply \
@@ -60,13 +67,6 @@ jobs:
             -target=aws_dynamodb_table.users \
             -target=aws_dynamodb_table.time_attendance \
             -target=aws_iam_role.apprunner_role
-
-      # Step 7: Configure AWS credentials
-      - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v2
-        with:
-          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
-          aws-region: ${{ env.AWS_REGION }}
 
       # Step 8: Login to ECR
       - name: Login to ECR
