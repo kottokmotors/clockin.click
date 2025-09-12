@@ -9,10 +9,15 @@ resource "aws_route53_record" "school_subdomain" {
 
 # Validation record for ACM certificate (DNS-01 challenge)
 resource "aws_route53_record" "validation" {
-  count   = length(aws_apprunner_custom_domain_association.domain.certificate_validation_records)
+  for_each = {
+    for r in try(aws_apprunner_custom_domain_association.domain.certificate_validation_records, []) :
+    r.name => r
+  }
   zone_id = var.route53_zone_id
-  name    = aws_apprunner_custom_domain_association.domain.certificate_validation_records[count.index].name
-  type    = aws_apprunner_custom_domain_association.domain.certificate_validation_records[count.index].type
-  records = [aws_apprunner_custom_domain_association.domain.certificate_validation_records[count.index].value]
+  name    = each.value.name
+  type    = each.value.type
+  records = [each.value.value]
   ttl     = 60
+
+  depends_on = [aws_apprunner_custom_domain_association.domain]
 }
