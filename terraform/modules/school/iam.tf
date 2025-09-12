@@ -34,6 +34,11 @@ resource "aws_iam_role_policy" "dynamodb_policy" {
           aws_dynamodb_table.users.arn,
           aws_dynamodb_table.time_attendance.arn
         ]
+      },
+      {
+        Effect  = "Allow"
+        Action  = ["ecr:*"]
+        Resource= "*"
       }
     ]
   })
