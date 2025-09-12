@@ -75,7 +75,7 @@ jobs:
           TARGETS="$TARGETS -target=module.schools${school}.aws_dynamodb_table.users"
           TARGETS="$TARGETS -target=module.schools${school}.aws_dynamodb_table.time_attendance"
           TARGETS="$TARGETS -target=module.schools${school}.aws_iam_role.apprunner_role"
-          TARGETS="$TARGETS -target=module.schools${school}.aws_iam_role.apprunner_policy"
+          TARGETS="$TARGETS -target=module.schools${school}.aws_iam_role_policy.apprunner_policy"
           done
           
           terraform -chdir=${{ env.TERRAFORM_DIR }} apply \
