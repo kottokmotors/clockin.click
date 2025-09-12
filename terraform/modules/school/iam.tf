@@ -20,9 +20,8 @@ resource "aws_iam_role" "apprunner_role" {
 }
 
 # IAM policy granting access to this school's DynamoDB tables
-resource "aws_iam_role_policy" "apprunner_policy" {
+resource "aws_iam_policy" "apprunner_policy" {
   name = "${var.project_name}-${var.school_id}-apprunner-policy"
-  role = aws_iam_role.apprunner_role.id
 
   policy = jsonencode({
     Version = "2012-10-17",
@@ -42,4 +41,10 @@ resource "aws_iam_role_policy" "apprunner_policy" {
       }
     ]
   })
+}
+
+# Attach policy to role
+resource "aws_iam_role_policy_attachment" "apprunner_role_attach" {
+  role       = aws_iam_role.apprunner_role.name
+  policy_arn = aws_iam_policy.apprunner_policy.arn
 }
