@@ -113,7 +113,9 @@ jobs:
           # Loop through schools and add the resource addresses dynamically
           for school in $SCHOOLS_JSON; do
           TARGETS="$TARGETS -target=module.schools${school}.aws_apprunner_service.service"
+          TARGETS="$TARGETS -target=module.schools${school}.aws_apprunner_custom_domain_association.domain"
           TARGETS="$TARGETS -target=module.schools${school}.aws_route53_record.school_subdomain"
+          TARGETS="$TARGETS -target=module.schools${school}.aws_route53_record.validation"
           done
           
           terraform -chdir=${{ env.TERRAFORM_DIR }} apply \
