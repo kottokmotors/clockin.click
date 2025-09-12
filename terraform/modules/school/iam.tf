@@ -20,7 +20,7 @@ resource "aws_iam_role" "apprunner_role" {
 }
 
 # IAM policy granting access to this school's DynamoDB tables
-resource "aws_iam_role_policy" "dynamodb_policy" {
+resource "aws_iam_role_policy" "apprunner_role" {
   name = "${var.project_name}-${var.school_id}-apprunner-policy"
   role = aws_iam_role.apprunner_role.id
 
