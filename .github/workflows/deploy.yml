@@ -115,6 +115,23 @@ jobs:
           TARGETS="$TARGETS -target=module.schools${school}.aws_apprunner_service.service"
           TARGETS="$TARGETS -target=module.schools${school}.aws_apprunner_custom_domain_association.domain"
           TARGETS="$TARGETS -target=module.schools${school}.aws_route53_record.school_subdomain"
+          done
+          
+          terraform -chdir=${{ env.TERRAFORM_DIR }} apply \
+            -auto-approve \
+            -var="schools=${SCHOOLS_JSON}" \
+            $TARGETS
+
+      # Step 11: Terraform apply cert validation
+      - name: Terraform Apply Certificate Validation
+        run: |
+          # Convert comma-separated secret into a JSON-style list
+          SCHOOLS_JSON=$(echo "[\"$(echo $SCHOOLS | sed 's/,/","/g')\"]")
+          # Initialize an empty string for all targets
+          TARGETS=""
+          
+          # Loop through schools and add the resource addresses dynamically
+          for school in $SCHOOLS_JSON; do
           TARGETS="$TARGETS -target=module.schools${school}.aws_route53_record.validation"
           done
           
