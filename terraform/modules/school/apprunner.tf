@@ -14,8 +14,6 @@ resource "aws_apprunner_service" "service" {
         port = "3000"
       }
     }
-
-    auto_deployments_enabled = true
   }
 
   tags = {
