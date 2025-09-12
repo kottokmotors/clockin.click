@@ -103,5 +103,18 @@ jobs:
       # Step 10: Terraform apply App Runner + Route 53
       - name: Terraform Apply App Runner + Route53
         run: |
+          # Convert comma-separated secret into a JSON-style list
           SCHOOLS_JSON=$(echo "[\"$(echo $SCHOOLS | sed 's/,/","/g')\"]")
-          terraform -chdir=${{ env.TERRAFORM_DIR }} apply -auto-approve -var="schools=${SCHOOLS_JSON}"
+          # Initialize an empty string for all targets
+          TARGETS=""
+          
+          # Loop through schools and add the resource addresses dynamically
+          for school in $SCHOOLS_JSON; do
+          TARGETS="$TARGETS -target=module.schools${school}.aws_apprunner_service.service"
+          TARGETS="$TARGETS -target=module.schools${school}.aws_route53_record.school_subdomain"
+          done
+          
+          terraform -chdir=${{ env.TERRAFORM_DIR }} apply \
+            -auto-approve \
+            -var="schools=${SCHOOLS_JSON}" \
+            $TARGETS
