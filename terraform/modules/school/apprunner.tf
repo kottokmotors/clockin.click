@@ -23,3 +23,9 @@ resource "aws_apprunner_service" "service" {
     application = var.project_name
   }
 }
+
+# Custom domain association for school subdomain
+resource "aws_apprunner_custom_domain_association" "domain" {
+  service_arn = aws_apprunner_service.service.arn
+  domain_name = "${var.school_id}.clockin.click"
+}
