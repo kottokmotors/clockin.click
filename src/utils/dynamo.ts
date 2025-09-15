@@ -18,8 +18,12 @@ const getString = (val?: AttributeValue): string | undefined =>
     val && "S" in val ? val.S : undefined;
 
 const getStringList = (list?: AttributeValue[]): string[] =>
-    list?.map((v) => (v.S ? v.S : "")).filter(Boolean) || [];
+    list?.map((v) => v.S).filter((v): v is string => !!v) || [];
 
+const getUserList = (list?: AttributeValue[]): string[] =>
+    list?.map((v) => v.S).filter((v): v is string => !!v) || [];
+
+// ---------- Unmarshall ----------
 export const unmarshallUser = (
     item: Record<string, AttributeValue> | undefined
 ): User | null => {
@@ -35,9 +39,8 @@ export const unmarshallUser = (
         pin: getString(item.Pin),
         status: getString(item.Status),
         lastClockTransaction: getString(item.LastClockTransaction),
-        learners: item.Learners?.L ? getStringList(item.Learners.L) : [],
-        adminLevel:
-            getString(item.AdminLevel) || (item.AdminLevel?.N ?? undefined),
+        learners: getUserList(item.Learners.L) ?? [],
+        adminLevel: getString(item.AdminLevel),
     };
 };
 
@@ -58,16 +61,13 @@ export const marshallUser = (user: User): Record<string, AttributeValue> => {
     if (user.learners && user.learners.length > 0)
         item.Learners = { L: user.learners.map((l) => ({ S: l })) };
     if (user.adminLevel) {
-        if (typeof user.adminLevel === "number") {
-            item.AdminLevel = { N: user.adminLevel.toString() };
-        } else {
-            item.AdminLevel = { S: user.adminLevel };
-        }
+        item.AdminLevel = { S: user.adminLevel };
     }
 
     return item;
 };
 
+// ---------- Marshall Update ----------
 export const marshallUserUpdate = (
     userId: string,
     updates: Partial<User>
@@ -77,19 +77,32 @@ export const marshallUserUpdate = (
     const attrNames: Record<string, string> = {};
     const attrValues: Record<string, AttributeValue> = {};
 
-    const handleField = (
-        key: keyof User,
-        val: any,
-        convert?: (v: any) => AttributeValue
+    const handleField = <T extends keyof User>(
+        key: T,
+        val: User[T] | undefined
     ) => {
         const placeholder = `#${key}`;
-        attrNames[placeholder] = key;
+        attrNames[placeholder] = key as string;
 
         if (val === null) {
             removeParts.push(placeholder);
         } else if (val !== undefined) {
             setParts.push(`${placeholder} = :${key}`);
-            attrValues[`:${key}`] = convert ? convert(val) : { S: val };
+
+            // Convert to AttributeValue
+            let attrVal: AttributeValue;
+            switch (key) {
+                case "roles":
+                case "learners":
+                    attrVal = { L: (val as string[]).map((v) => ({ S: v })) };
+                    break;
+                case "adminLevel":
+                    attrVal = { S: val as string };
+                    break;
+                default:
+                    attrVal = { S: val as string };
+            }
+            attrValues[`:${key}`] = attrVal;
         }
     };
 
@@ -99,15 +112,9 @@ export const marshallUserUpdate = (
     handleField("pin", updates.pin);
     handleField("status", updates.status);
     handleField("lastClockTransaction", updates.lastClockTransaction);
-    handleField("roles", updates.roles, (v: string[]) => ({
-        L: v.map((r) => ({ S: r })),
-    }));
-    handleField("learners", updates.learners, (v: string[]) => ({
-        L: v.map((l) => ({ S: l })),
-    }));
-    handleField("adminLevel", updates.adminLevel, (v) =>
-        typeof v === "number" ? { N: v.toString() } : { S: v }
-    );
+    handleField("roles", updates.roles);
+    handleField("learners", updates.learners);
+    handleField("adminLevel", updates.adminLevel);
 
     let updateExpression = "";
     if (setParts.length) updateExpression += "SET " + setParts.join(", ");
@@ -123,8 +130,6 @@ export const marshallUserUpdate = (
 };
 
 // ---------- Queries ----------
-
-// Get by UserId (primary key)
 export const getUserById = async (userId: string) => {
     const result = await client.send(
         new GetItemCommand({
@@ -135,32 +140,26 @@ export const getUserById = async (userId: string) => {
     return unmarshallUser(result.Item);
 };
 
-// Get by Pin (via GSI)
 export const getUserByPin = async (pin: string) => {
     const result = await client.send(
         new QueryCommand({
             TableName: USERS_TABLE,
             IndexName: "PinIndex",
             KeyConditionExpression: "Pin = :pin",
-            ExpressionAttributeValues: {
-                ":pin": { S: pin },
-            },
+            ExpressionAttributeValues: { ":pin": { S: pin } },
             Limit: 1,
         })
     );
     return result.Items?.length ? unmarshallUser(result.Items[0]) : null;
 };
 
-// Get by Email (via GSI)
 export const getUserByEmail = async (email: string) => {
     const result = await client.send(
         new QueryCommand({
             TableName: USERS_TABLE,
             IndexName: "EmailIndex",
             KeyConditionExpression: "Email = :email",
-            ExpressionAttributeValues: {
-                ":email": { S: email },
-            },
+            ExpressionAttributeValues: { ":email": { S: email } },
             Limit: 1,
         })
     );
@@ -168,8 +167,6 @@ export const getUserByEmail = async (email: string) => {
 };
 
 // ---------- Mutations ----------
-
-// Add or update a user
 export const putUser = async (user: User) => {
     await client.send(
         new PutItemCommand({
@@ -179,18 +176,12 @@ export const putUser = async (user: User) => {
     );
 };
 
-// Update user status + last clock transaction
-export const updateUserStatus = async (
-    userId: string,
-    status: string
-) => {
+export const updateUserStatus = async (userId: string, status: string) => {
     const timestamp = new Date().toISOString();
-
     const updateCommand = marshallUserUpdate(userId, {
         status,
         lastClockTransaction: timestamp,
     });
-
     await client.send(
         new UpdateItemCommand({
             TableName: USERS_TABLE,

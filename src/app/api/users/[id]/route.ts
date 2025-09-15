@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getUserById, marshallUserUpdate } from "@/utils/dynamo";
-import { UpdateItemCommand, DeleteItemCommand } from "@aws-sdk/client-dynamodb";
+import { getUserById } from "@/utils/dynamo";
+import { DeleteItemCommand } from "@aws-sdk/client-dynamodb";
 import { client, USERS_TABLE, updateUserStatus } from "@/utils/dynamo";
-import { User } from "@/types/user";
 
 export async function GET(
     req: NextRequest,

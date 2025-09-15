@@ -4,7 +4,7 @@ export interface User {
     lastName: string;
     roles: string[];
     status?: string;
-    learners?: Pick<User, "userId" | "firstName" | "lastName" | "status">[];
+    learners?: string[];
     pin?: string;
     email?: string;
     adminLevel?: string;
