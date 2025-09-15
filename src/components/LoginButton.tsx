@@ -11,7 +11,7 @@ export default function LoginButton() {
                 <span className="text-gray-700">Hello, {session.user?.name}</span>
                 <button
                     onClick={() => signOut()}
-                    className="rounded bg-red-500 px-3 py-1 text-white"
+                    className="rounded bg-red-500 px-3 py-1 text-white cursor-pointer"
                 >
                     Sign out
                 </button>
@@ -21,9 +21,9 @@ export default function LoginButton() {
     return (
         <button
             onClick={() => signIn("google")}
-            className="rounded bg-blue-600 px-3 py-1 text-white"
+            className="rounded bg-blue-600 px-3 py-1 text-white cursor-pointer"
         >
-            Sign in
+           Administrator Sign in
         </button>
     );
 }
