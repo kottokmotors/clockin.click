@@ -5,11 +5,8 @@ import { DeleteItemCommand } from "@aws-sdk/client-dynamodb";
 import { User } from "@/types/user";
 
 // -------------------- GET --------------------
-export async function GET(
-    req: NextRequest,
-    context: Promise<{ id: string }>
-) {
-    const { id } = await context;
+export async function GET(request: NextRequest, context: { params: Promise<{ id: string; }>; }) {
+    const { id } = await context.params;
     const user = await getUserById(id);
     if (!user) {
         return NextResponse.json({ error: "User not found" }, { status: 404 });
