@@ -5,7 +5,7 @@ import { User } from "@/types/user";
 import { ScanCommand } from "@aws-sdk/client-dynamodb";
 
 // -------------------- GET: fetch all users --------------------
-export async function GET(req: NextRequest) {
+export async function GET() {
     try {
         const result = await client.send(
             new ScanCommand({

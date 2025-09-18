@@ -9,7 +9,7 @@ const handler = NextAuth({
         }),
     ],
     callbacks: {
-        async signIn({ user }) {
+        async signIn() {
             // You can add DynamoDB user provisioning here later
             return true;
         },
