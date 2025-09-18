@@ -7,9 +7,9 @@ import { User } from "@/types/user";
 // -------------------- GET --------------------
 export async function GET(
     req: NextRequest,
-    context: { params: { id: string } }
+    context: Promise<{ id: string }>
 ) {
-    const { id } = context.params;
+    const { id } = await context;
     const user = await getUserById(id);
     if (!user) {
         return NextResponse.json({ error: "User not found" }, { status: 404 });
