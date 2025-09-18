@@ -7,9 +7,10 @@ import { User } from "@/types/user";
 // -------------------- GET --------------------
 export async function GET(
     req: NextRequest,
-    { params }: { params: { id: string } }
+    context: { params: { id: string } }
 ) {
-    const user = await getUserById(params.id);
+    const { id } = context.params;
+    const user = await getUserById(id);
     if (!user) {
         return NextResponse.json({ error: "User not found" }, { status: 404 });
     }
