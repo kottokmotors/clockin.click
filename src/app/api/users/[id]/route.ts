@@ -2,10 +2,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getUserById, updateUserStatus, client, USERS_TABLE } from "@/utils/dynamo";
 import { DeleteItemCommand } from "@aws-sdk/client-dynamodb";
-import { User } from "@/types/user";
 
-// -------------------- GET --------------------
-export async function GET(request: NextRequest, context: { params: Promise<{ id: string; }>; }) {
+export async function GET(
+    req: NextRequest,
+    context: { params: Promise<{ id: string }> }
+) {
     const { id } = await context.params;
     const user = await getUserById(id);
     if (!user) {
@@ -14,12 +15,11 @@ export async function GET(request: NextRequest, context: { params: Promise<{ id:
     return NextResponse.json(user);
 }
 
-// -------------------- PATCH --------------------
 export async function PATCH(
     req: NextRequest,
-    { params }: { params: { id: string } }
+    context: { params: Promise<{ id: string }> }
 ) {
-    const userId = params.id;
+    const { id } = await context.params;
     const body = await req.json();
     const { status } = body;
 
@@ -28,16 +28,7 @@ export async function PATCH(
     }
 
     try {
-        // Update status in DynamoDB
-        await updateUserStatus(userId, status);
-
-        // Fetch the fresh user to return
-        const updatedUser: User | null = await getUserById(userId);
-
-        if (!updatedUser) {
-            return NextResponse.json({ error: "User not found after update" }, { status: 404 });
-        }
-
+        const updatedUser = await updateUserStatus(id, status);
         return NextResponse.json(updatedUser);
     } catch (err) {
         console.error(err);
@@ -45,21 +36,18 @@ export async function PATCH(
     }
 }
 
-// -------------------- DELETE --------------------
 export async function DELETE(
     req: NextRequest,
-    { params }: { params: { id: string } }
+    context: { params: Promise<{ id: string }> }
 ) {
-    try {
-        await client.send(
-            new DeleteItemCommand({
-                TableName: USERS_TABLE,
-                Key: { UserId: { S: params.id } },
-            })
-        );
-        return NextResponse.json({ success: true });
-    } catch (err) {
-        console.error(err);
-        return NextResponse.json({ error: "Failed to delete user" }, { status: 500 });
-    }
+    const { id } = await context.params;
+
+    await client.send(
+        new DeleteItemCommand({
+            TableName: USERS_TABLE,
+            Key: { UserId: { S: id } },
+        })
+    );
+
+    return NextResponse.json({ success: true });
 }
