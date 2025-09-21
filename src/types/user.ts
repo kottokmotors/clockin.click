@@ -4,7 +4,7 @@ export interface User {
     lastName: string;
     roles: string[];
     status?: string;
-    learners?: string[];
+    learners?: User[];
     pin?: string;
     email?: string;
     adminLevel?: string;
