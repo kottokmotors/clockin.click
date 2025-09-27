@@ -21,9 +21,8 @@ const getStringList = (list?: AttributeValue[]): string[] =>
 
 // ---------- Unmarshall ----------
 export const unmarshallUser = async (
-    item: Record<string, AttributeValue> | undefined
-): Promise<User | null> => {
-    if (!item) return null;
+    item: Record<string, AttributeValue>
+): Promise<User> => {
 
     const roles = item.Roles?.L ? getStringList(item.Roles.L) : [];
 

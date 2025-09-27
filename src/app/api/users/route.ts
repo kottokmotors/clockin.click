@@ -13,8 +13,12 @@ export async function GET() {
             })
         );
 
-        const users: User[] =
-            result.Items?.map((item) => unmarshallUser(item)).filter(Boolean) as User[] || [];
+        const users: User[] = await Promise.all(
+            (result.Items ?? [])
+                .map(async (item) => {
+                    return unmarshallUser(item);
+                })
+        );
 
         return NextResponse.json(users);
     } catch (err) {
