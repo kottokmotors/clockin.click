@@ -5,12 +5,11 @@ import {
     PutItemCommand,
     UpdateItemCommand,
     UpdateItemCommandInput,
-    AttributeValue
+    AttributeValue,
 } from "@aws-sdk/client-dynamodb";
-import { User } from "@/types/user";
+import { isGuardian, BaseUser, GuardianUser, RegularUser, User } from "@/types/user";
 
 export const client = new DynamoDBClient({ region: process.env.AWS_REGION });
-
 export const USERS_TABLE = process.env.USERS_TABLE || "users";
 
 // ---------- Helpers ----------
@@ -20,28 +19,64 @@ const getString = (val?: AttributeValue): string | undefined =>
 const getStringList = (list?: AttributeValue[]): string[] =>
     list?.map((v) => v.S).filter((v): v is string => !!v) || [];
 
-const getUserList = (list?: AttributeValue[]): string[] =>
-    list?.map((v) => v.S).filter((v): v is string => !!v) || [];
-
 // ---------- Unmarshall ----------
-export const unmarshallUser = (
+export const unmarshallUser = async (
     item: Record<string, AttributeValue> | undefined
-): User | null => {
+): Promise<User | null> => {
     if (!item) return null;
 
-    return {
+    const roles = item.Roles?.L ? getStringList(item.Roles.L) : [];
+
+    if (roles.includes("guardian")) {
+        const learnerIds = item.Learners?.L ? getStringList(item.Learners.L) : [];
+
+        const guardianRoles: [...string[], "guardian"] = [...roles.filter(r => r !== "guardian"), "guardian"];
+
+        // Hydrate learners
+        const learners: BaseUser[] = (
+            await Promise.all(
+                learnerIds.map(async (id) => {
+                    const learner = await getUserById(id);
+                    if (!learner) return null;
+                    return {
+                        userId: learner.userId,
+                        firstName: learner.firstName,
+                        lastName: learner.lastName,
+                        status: learner.status,
+                    } as BaseUser;
+                })
+            )
+        ).filter(Boolean) as BaseUser[];
+
+        const guardian: GuardianUser = {
+            userId: getString(item.UserId) ?? "",
+            firstName: getString(item.FirstName) ?? "",
+            lastName: getString(item.LastName) ?? "",
+            roles: guardianRoles,
+            status: getString(item.Status),
+            email: getString(item.Email),
+            pin: getString(item.Pin),
+            lastClockTransaction: getString(item.LastClockTransaction),
+            learners,
+            adminLevel: getString(item.AdminLevel),
+        };
+
+        return guardian;
+    }
+
+    const regular: RegularUser = {
         userId: getString(item.UserId) ?? "",
         firstName: getString(item.FirstName) ?? "",
         lastName: getString(item.LastName) ?? "",
-        roles: item.Roles?.L ? getStringList(item.Roles.L) : [],
-
+        roles,
+        status: getString(item.Status),
         email: getString(item.Email),
         pin: getString(item.Pin),
-        status: getString(item.Status),
         lastClockTransaction: getString(item.LastClockTransaction),
-        learners: getUserList(item.Learners.L) ?? [],
         adminLevel: getString(item.AdminLevel),
     };
+
+    return regular;
 };
 
 // ---------- Marshall ----------
@@ -50,7 +85,7 @@ export const marshallUser = (user: User): Record<string, AttributeValue> => {
         UserId: { S: user.userId },
         FirstName: { S: user.firstName },
         LastName: { S: user.lastName },
-        Roles: { L: user.roles.map((r) => ({ S: r })) },
+        Roles: { L: user.roles.map((r: string) => ({ S: r })) },
     };
 
     if (user.email) item.Email = { S: user.email };
@@ -58,8 +93,12 @@ export const marshallUser = (user: User): Record<string, AttributeValue> => {
     if (user.status) item.Status = { S: user.status };
     if (user.lastClockTransaction)
         item.LastClockTransaction = { S: user.lastClockTransaction };
-    if (user.learners && user.learners.length > 0)
-        item.Learners = { L: user.learners.map((l) => ({ S: l })) };
+
+    // Only add learners if this is a GuardianUser
+    if (isGuardian(user) && user.learners.length > 0) {
+        item.Learners = { L: user.learners.map((l: User) => ({ S: l.userId })) };
+    }
+
     if (user.adminLevel) {
         item.AdminLevel = { S: user.adminLevel };
     }
@@ -81,28 +120,26 @@ export const marshallUserUpdate = (
         key: T,
         val: User[T] | undefined
     ) => {
-        const placeholder = `#${key}`;
+        const placeholder = `#${key as string}`;
         attrNames[placeholder] = key as string;
 
         if (val === null) {
             removeParts.push(placeholder);
         } else if (val !== undefined) {
-            setParts.push(`${placeholder} = :${key}`);
+            setParts.push(`${placeholder} = :${key as string}`);
 
-            // Convert to AttributeValue
             let attrVal: AttributeValue;
             switch (key) {
                 case "roles":
+                    attrVal = { L: (val as string[]).map((v) => ({ S: v })) };
+                    break;
                 case "learners":
                     attrVal = { L: (val as string[]).map((v) => ({ S: v })) };
                     break;
-                case "adminLevel":
-                    attrVal = { S: val as string };
-                    break;
                 default:
-                    attrVal = { S: val as string };
+                    attrVal = { S: String(val) };
             }
-            attrValues[`:${key}`] = attrVal;
+            attrValues[`:${key as string}`] = attrVal;
         }
     };
 
@@ -113,19 +150,24 @@ export const marshallUserUpdate = (
     handleField("status", updates.status);
     handleField("lastClockTransaction", updates.lastClockTransaction);
     handleField("roles", updates.roles);
-    handleField("learners", updates.learners);
+    if (updates.roles?.includes("guardian")) {
+        handleField("learners", updates.learners);
+    }
     handleField("adminLevel", updates.adminLevel);
 
     let updateExpression = "";
     if (setParts.length) updateExpression += "SET " + setParts.join(", ");
     if (removeParts.length)
-        updateExpression += (updateExpression ? " " : "") + "REMOVE " + removeParts.join(", ");
+        updateExpression +=
+            (updateExpression ? " " : "") + "REMOVE " + removeParts.join(", ");
 
     return {
         Key: { UserId: { S: userId } },
         UpdateExpression: updateExpression,
         ExpressionAttributeNames: attrNames,
-        ExpressionAttributeValues: Object.keys(attrValues).length ? attrValues : undefined,
+        ExpressionAttributeValues: Object.keys(attrValues).length
+            ? attrValues
+            : undefined,
     };
 };
 
@@ -137,7 +179,8 @@ export const getUserById = async (userId: string) => {
             Key: { UserId: { S: userId } },
         })
     );
-    return unmarshallUser(result.Item);
+
+    return result.Item ? await unmarshallUser(result.Item) : null;
 };
 
 export const getUserByPin = async (pin: string) => {
@@ -150,7 +193,10 @@ export const getUserByPin = async (pin: string) => {
             Limit: 1,
         })
     );
-    return result.Items?.length ? unmarshallUser(result.Items[0]) : null;
+
+    return result.Items && result.Items.length
+        ? await unmarshallUser(result.Items[0])
+        : null;
 };
 
 export const getUserByEmail = async (email: string) => {
@@ -163,7 +209,10 @@ export const getUserByEmail = async (email: string) => {
             Limit: 1,
         })
     );
-    return result.Items?.length ? unmarshallUser(result.Items[0]) : null;
+
+    return result.Items && result.Items.length
+        ? await unmarshallUser(result.Items[0])
+        : null;
 };
 
 // ---------- Mutations ----------

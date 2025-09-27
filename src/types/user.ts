@@ -1,12 +1,30 @@
-export interface User {
+export interface BaseUser {
     userId: string;
     firstName: string;
     lastName: string;
     roles: string[];
     status?: string;
-    learners?: User[];
     pin?: string;
     email?: string;
     adminLevel?: string;
     lastClockTransaction?: string;
+}
+
+// Guardian user (must have learners)
+export interface GuardianUser extends BaseUser {
+    roles: [...string[], "guardian"]; // ensures guardian is included
+    learners: BaseUser[];             // guardians track learners
+}
+
+// Non-guardian user (no learners allowed)
+export interface RegularUser extends BaseUser {
+    learners?: never;
+}
+
+// Final User type
+export type User = GuardianUser | RegularUser;
+
+// Type guard helper
+export function isGuardian(user: User): user is GuardianUser {
+    return user.roles.includes("guardian");
 }
