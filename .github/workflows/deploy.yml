@@ -98,7 +98,7 @@ jobs:
             IMAGE_URI="${{ env.AWS_ACCOUNT_ID }}.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com/${ECR_REPO}:${SCHOOL_LOWER}-latest"
             echo "Building and pushing Docker image for $school -> $IMAGE_URI"\
             docker build --build-arg SCHOOL_NAME="$school" -t ${SCHOOL_LOWER}-latest ./
-            docker tag ${SCHOOL_LOWER}-app $IMAGE_URI
+            docker tag ${SCHOOL_LOWER}-latest $IMAGE_URI
             docker push $IMAGE_URI
           done
 
