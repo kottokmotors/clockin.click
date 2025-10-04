@@ -70,16 +70,15 @@ export default function PinEntry() {
 
     const canClockSelf =
         user &&
-        user.roles.some((r) => ["staff", "learner", "volunteer"].includes(r.toLowerCase()));
+        user.roles.some((r) => ["staff", "learner", "volunteer", "guardian"].includes(r.toLowerCase()));
 
     const isGuardian = user?.roles.includes("guardian");
 
     return (
-        <div className="flex flex-col items-center justify-center min-h-screen p-4 bg-gray-100">
-            <h1 className="text-2xl font-bold mb-6">Enter Your PIN</h1>
-
+        <div className="flex flex-col items-center min-h-screen p-4 pt-20 bg-gray-100">
             {!user ? (
                 <form onSubmit={handleSubmit} className="flex flex-col items-center space-y-4">
+                    <h1 className="text-3xl font-bold mb-6">Enter Your PIN</h1>
                     <input
                         type="text"
                         inputMode="numeric"
@@ -88,7 +87,7 @@ export default function PinEntry() {
                         value={pin}
                         onChange={handleChange}
                         autoFocus
-                        className="w-40 text-center text-xl border rounded-md p-2 shadow focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        className="w-60 text-center text-5xl border rounded-md p-2 shadow focus:outline-none focus:ring-2 focus:ring-blue-500"
                     />
 
                     {error && <p className="text-red-500">{error}</p>}
@@ -97,22 +96,22 @@ export default function PinEntry() {
                         <button
                             type="button"
                             onClick={clearPin}
-                            className="px-4 py-2 bg-gray-300 rounded hover:bg-gray-400 text-black cursor-pointer"
+                            className="px-4 py-2 text-2xl bg-gray-300 rounded hover:bg-gray-400 text-black cursor-pointer"
                         >
                             Clear
                         </button>
                         <button
                             type="submit"
-                            className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 cursor-pointer"
+                            className="px-4 py-2 w-35 text-2xl bg-blue-500 text-white rounded hover:bg-blue-600 cursor-pointer"
                             disabled={loading}
                         >
-                            {loading ? "Loading..." : "Submit"}
+                            {loading ? "Loading..." : "Lookup"}
                         </button>
                     </div>
                 </form>
             ) : (
                 <div className="bg-white p-6 rounded shadow text-center flex flex-col gap-4 items-center w-full max-w-md">
-                    <h2 className="text-xl font-semibold">
+                    <h2 className="text-3xl font-semibold">
                         Welcome, {user.firstName} {user.lastName}!
                     </h2>
                     <p>Roles: {user.roles.join(", ")}</p>
@@ -122,45 +121,57 @@ export default function PinEntry() {
                         <div className="flex gap-4">
                             <button
                                 onClick={() => handleClock(user.userId, "In")}
-                                className="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700"
-                                disabled={loading}
+                                className={`px-4 py-2 rounded text-white
+                                                ${user.status?.toLowerCase() === "in"
+                                    ? "bg-gray-400 cursor-not-allowed"
+                                    : "bg-green-600 hover:bg-green-700"}`}
+                                disabled={user.status?.toLowerCase() === "in"}
                             >
                                 Clock In
                             </button>
                             <button
                                 onClick={() => handleClock(user.userId, "Out")}
-                                className="bg-red-600 text-white px-4 py-2 rounded hover:bg-red-700"
-                                disabled={loading}
+                                className={`px-4 py-2 rounded text-white
+                                                ${user.status?.toLowerCase() === "out"
+                                    ? "bg-gray-400 cursor-not-allowed"
+                                    : "bg-red-600 hover:bg-red-700"}`}
+                                disabled={user.status?.toLowerCase() === "out"}
                             >
                                 Clock Out
                             </button>
                         </div>
                     )}
 
-                    {isGuardian && user.learners?.length ? (
+                    {isGuardian && user.learners ? (
                         <div className="mt-4 w-full">
                             <h3 className="font-semibold mb-2">Your Learners</h3>
                             <ul className="space-y-2">
                                 {user.learners.map((learner) => (
                                     <li
                                         key={learner.userId}
-                                        className="flex justify-between items-center border p-2 rounded"
+                                        className="flex justify-between items-center border text-2xl p-2 rounded"
                                     >
                     <span>
                       {learner.firstName} {learner.lastName} {learner.status ? `(${learner.status})` : ""}
                     </span>
-                                        <div className="flex gap-2">
+                                        <div className="flex gap-8">
                                             <button
                                                 onClick={() => handleClock(learner.userId, "In")}
-                                                className="bg-green-600 text-white px-2 py-1 rounded hover:bg-green-700"
-                                                disabled={loading}
+                                                className={`px-2 py-1 rounded text-white
+                                                ${learner.status?.toLowerCase() === "in"
+                                                    ? "bg-gray-400 cursor-not-allowed"
+                                                    : "bg-green-600 hover:bg-green-700"}`}
+                                                disabled={learner.status?.toLowerCase() === "in"}
                                             >
                                                 In
                                             </button>
                                             <button
                                                 onClick={() => handleClock(learner.userId, "Out")}
-                                                className="bg-red-600 text-white px-2 py-1 rounded hover:bg-red-700"
-                                                disabled={loading}
+                                                className={`px-2 py-1 rounded text-white
+                                                ${learner.status?.toLowerCase() === "out"
+                                                    ? "bg-gray-400 cursor-not-allowed"
+                                                    : "bg-red-600 hover:bg-red-700"}`}
+                                                disabled={learner.status?.toLowerCase() === "out"}
                                             >
                                                 Out
                                             </button>
@@ -176,7 +187,7 @@ export default function PinEntry() {
                         onClick={clearPin}
                         className="mt-4 px-4 py-2 bg-gray-300 rounded hover:bg-gray-400 text-black cursor-pointer"
                     >
-                        Logout
+                        Submit
                     </button>
                 </div>
             )}

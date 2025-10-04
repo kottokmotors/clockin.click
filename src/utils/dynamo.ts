@@ -10,7 +10,7 @@ import {
 import { isGuardian, BaseUser, GuardianUser, RegularUser, User } from "@/types/user";
 
 export const client = new DynamoDBClient({ region: process.env.AWS_REGION });
-export const USERS_TABLE = process.env.USERS_TABLE || "users";
+export const USERS_TABLE = `clockinclick-${process.env.SCHOOL_NAME}-Users` || "users";
 
 // ---------- Helpers ----------
 const getString = (val?: AttributeValue): string | undefined =>
@@ -25,7 +25,6 @@ export const unmarshallUser = async (
 ): Promise<User> => {
 
     const roles = item.Roles?.L ? getStringList(item.Roles.L) : [];
-
     if (roles.includes("guardian")) {
         const learnerIds = item.Learners?.L ? getStringList(item.Learners.L) : [];
 
@@ -110,36 +109,73 @@ export const marshallUserUpdate = (
     userId: string,
     updates: Partial<User>
 ): Omit<UpdateItemCommandInput, "TableName"> => {
+    // map TS keys -> DynamoDB attribute names (PascalCase)
+    const ATTR_MAP: Record<string, string> = {
+        userId: "UserId",
+        firstName: "FirstName",
+        lastName: "LastName",
+        email: "Email",
+        pin: "Pin",
+        status: "Status",
+        lastClockTransaction: "LastClockTransaction",
+        roles: "Roles",
+        learners: "Learners",
+        adminLevel: "AdminLevel",
+    };
+
     const setParts: string[] = [];
     const removeParts: string[] = [];
     const attrNames: Record<string, string> = {};
     const attrValues: Record<string, AttributeValue> = {};
 
-    const handleField = <T extends keyof User>(
-        key: T,
-        val: User[T] | undefined
-    ) => {
-        const placeholder = `#${key as string}`;
-        attrNames[placeholder] = key as string;
+    const handleField = <T extends keyof User>(key: T, val: User[T] | undefined) => {
+        if (val === undefined) return; // nothing to do for this field
+
+        const keyStr = key as string;
+        const placeholder = `#${keyStr}`; // placeholder used in expression (any stable token)
+        const valuePlaceholder = `:${keyStr}`; // value placeholder
+        const attrName = ATTR_MAP[keyStr] ?? keyStr; // the actual attribute name in DynamoDB
 
         if (val === null) {
+            // remove attribute
             removeParts.push(placeholder);
-        } else if (val !== undefined) {
-            setParts.push(`${placeholder} = :${key as string}`);
-
-            let attrVal: AttributeValue;
-            switch (key) {
-                case "roles":
-                    attrVal = { L: (val as string[]).map((v) => ({ S: v })) };
-                    break;
-                case "learners":
-                    attrVal = { L: (val as string[]).map((v) => ({ S: v })) };
-                    break;
-                default:
-                    attrVal = { S: String(val) };
-            }
-            attrValues[`:${key as string}`] = attrVal;
+            attrNames[placeholder] = attrName;
+            return;
         }
+
+        // SET clause
+        setParts.push(`${placeholder} = ${valuePlaceholder}`);
+        attrNames[placeholder] = attrName;
+
+        // Build AttributeValue depending on field type
+        let attrVal: AttributeValue;
+        switch (keyStr) {
+            case "roles": {
+                const arr = (val as unknown) as string[];
+                attrVal = { L: arr.map((v) => ({ S: String(v) })) };
+                break;
+            }
+            case "learners": {
+                attrVal = { L: (val as BaseUser[]).map(u => ({ S: String(u.userId) })) };
+                break;
+            }
+            case "adminLevel": {
+                const v = val as unknown;
+                if (typeof v === "number") {
+                    attrVal = { N: String(v) };
+                } else {
+                    attrVal = { S: String(v) };
+                }
+                break;
+            }
+            default: {
+                // default to string
+                attrVal = { S: String(val as unknown) };
+                break;
+            }
+        }
+
+        attrValues[valuePlaceholder] = attrVal;
     };
 
     handleField("firstName", updates.firstName);
@@ -149,7 +185,11 @@ export const marshallUserUpdate = (
     handleField("status", updates.status);
     handleField("lastClockTransaction", updates.lastClockTransaction);
     handleField("roles", updates.roles);
+    // If roles changed and includes guardian, allow learners to be set/updated
     if (updates.roles?.includes("guardian")) {
+        handleField("learners", updates.learners);
+    } else if (updates.learners !== undefined) {
+        // If caller passed learners explicitly but didn't add guardian role, still allow it
         handleField("learners", updates.learners);
     }
     handleField("adminLevel", updates.adminLevel);
@@ -157,18 +197,18 @@ export const marshallUserUpdate = (
     let updateExpression = "";
     if (setParts.length) updateExpression += "SET " + setParts.join(", ");
     if (removeParts.length)
-        updateExpression +=
-            (updateExpression ? " " : "") + "REMOVE " + removeParts.join(", ");
+        updateExpression += (updateExpression ? " " : "") + "REMOVE " + removeParts.join(", ");
 
     return {
         Key: { UserId: { S: userId } },
         UpdateExpression: updateExpression,
-        ExpressionAttributeNames: attrNames,
-        ExpressionAttributeValues: Object.keys(attrValues).length
-            ? attrValues
-            : undefined,
+        // Only include these maps if they have entries — avoids Dynamo errors about unused names/values
+        ExpressionAttributeNames: Object.keys(attrNames).length ? attrNames : undefined,
+        ExpressionAttributeValues: Object.keys(attrValues).length ? attrValues : undefined,
     };
 };
+
+
 
 // ---------- Queries ----------
 export const getUserById = async (userId: string) => {
@@ -224,16 +264,27 @@ export const putUser = async (user: User) => {
     );
 };
 
-export const updateUserStatus = async (userId: string, status: string) => {
+export const updateUserStatus = async (
+    userId: string,
+    status: string
+): Promise<User | null> => {
     const timestamp = new Date().toISOString();
+
+    // Build the update expression
     const updateCommand = marshallUserUpdate(userId, {
         status,
         lastClockTransaction: timestamp,
     });
+
+    // Run the update
     await client.send(
         new UpdateItemCommand({
             TableName: USERS_TABLE,
             ...updateCommand,
         })
     );
+
+    // Fetch the updated user (hydrated)
+    return await getUserById(userId);
 };
+

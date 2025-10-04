@@ -1,3 +1,7 @@
+# Dockerfile
+ARG SCHOOL_NAME
+ENV SCHOOL_NAME=$SCHOOL_NAME
+
 # 1️⃣ Builder stage
 FROM node:20-alpine AS builder
 
