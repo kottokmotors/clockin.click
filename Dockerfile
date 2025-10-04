@@ -1,39 +1,43 @@
-# Dockerfile
-ARG SCHOOL_NAME
-ENV SCHOOL_NAME=$SCHOOL_NAME
-
-# 1️⃣ Builder stage
+# --- Stage 1: Builder ---
 FROM node:20-alpine AS builder
+
+# Pass build argument from GitHub Actions
+ARG SCHOOL_NAME
+# Make it available inside the image
+ENV SCHOOL_NAME=$SCHOOL_NAME
 
 # Set working directory
 WORKDIR /app
 
 # Install dependencies
-COPY package.json package-lock.json ./
-RUN npm ci
+COPY package*.json ./
+RUN npm ci --omit=dev
 
-# Copy the rest of the source code
+# Copy source and build
 COPY . .
-
-# Build the Next.js app
 RUN npm run build
 
-# 2️⃣ Runtime stage
+
+# --- Stage 2: Runtime ---
 FROM node:20-alpine AS runner
 
-# Set working directory
 WORKDIR /app
 
-# Copy built app and package.json
-COPY --from=builder /app/package.json ./
+# Copy the built app from the builder stage
+COPY --from=builder /app/package*.json ./
 COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/.next ./.next
 COPY --from=builder /app/public ./public
-COPY --from=builder /app/next.config.ts ./
+COPY --from=builder /app/next.config.* ./
+
+# Environment configuration
+ENV NODE_ENV=production
+# Keep SCHOOL_NAME available at runtime too
+ARG SCHOOL_NAME
+ENV SCHOOL_NAME=$SCHOOL_NAME
 
 # Expose default Next.js port
 EXPOSE 3000
 
-# Start the app in production mode
-ENV NODE_ENV=production
+# Default command
 CMD ["npm", "start"]
