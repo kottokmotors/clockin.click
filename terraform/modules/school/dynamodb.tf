@@ -1,6 +1,6 @@
 # DynamoDB Users table
 resource "aws_dynamodb_table" "users" {
-  name         = "${var.project_name}-${var.school_id}-users"
+  name         = "${var.project_name}-${var.school_id}-Users"
   billing_mode = "PAY_PER_REQUEST"
   hash_key     = "UserId"
 

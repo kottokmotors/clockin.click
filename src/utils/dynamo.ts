@@ -223,6 +223,7 @@ export const getUserById = async (userId: string) => {
 };
 
 export const getUserByPin = async (pin: string) => {
+    console.log(USERS_TABLE)
     const result = await client.send(
         new QueryCommand({
             TableName: USERS_TABLE,
