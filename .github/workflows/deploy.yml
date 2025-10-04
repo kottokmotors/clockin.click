@@ -96,11 +96,13 @@ jobs:
           for school in $SCHOOLS; do
             SCHOOL_LOWER=$(echo $school | tr '[:upper:]' '[:lower:]' | tr ' ' '-')
             IMAGE_URI="${{ env.AWS_ACCOUNT_ID }}.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com/${ECR_REPO}:${SCHOOL_LOWER}-latest"
-            echo "Building and pushing Docker image for $school -> $IMAGE_URI"\
-            docker build --build-arg SCHOOL_NAME="$school" -t ${SCHOOL_LOWER}-latest ./
-            docker tag ${SCHOOL_LOWER}-latest $IMAGE_URI
+          
+            echo "Building and pushing Docker image for $school -> $IMAGE_URI"
+          
+            docker build --build-arg SCHOOL_NAME="$school" -t $IMAGE_URI ./
             docker push $IMAGE_URI
           done
+
 
       # Step 10: Terraform apply App Runner + Route 53
       - name: Terraform Apply App Runner + Route53
