@@ -74,14 +74,9 @@ resource "aws_iam_policy" "apprunner_instance_role_policy" {
         Effect   = "Allow"
         Action   = ["dynamodb:*"]
         Resource = [
-          aws_dynamodb_table.users.arn,
-          aws_dynamodb_table.time_attendance.arn
+          "${aws_dynamodb_table.users.arn}*",
+          "${aws_dynamodb_table.time_attendance.arn}*"
         ]
-      },
-      {
-        Effect  = "Allow"
-        Action  = ["ecr:*"]
-        Resource= "*"
       }
     ]
   })
