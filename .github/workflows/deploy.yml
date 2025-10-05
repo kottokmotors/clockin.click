@@ -76,13 +76,17 @@ jobs:
       # Step 7: Terraform apply environment-specific infra (DynamoDB + IAM)
       - name: Terraform Apply Environment Infra
         run: |
-          # Convert comma-separated secret into a JSON-style list
-          SCHOOLS_JSON=$(echo "[\"$(echo $SCHOOLS | sed 's/,/","/g')\"]")
+          # Convert comma-separated string into a Bash array
+          IFS=',' read -ra SCHOOLS_ARRAY <<< "$SCHOOLS"
+  
+          # Generate JSON-style array for Terraform variable
+          SCHOOLS_JSON=$(printf '%s\n' "${SCHOOLS_ARRAY[@]}" | jq -R . | jq -s .)
+          
           # Initialize an empty string for all targets
           TARGETS=""
       
           # Loop through schools and add the resource addresses dynamically
-          for school in $SCHOOLS_JSON; do
+          for school in "${SCHOOLS_ARRAY[@]}"; do
           TARGETS="$TARGETS -target=module.schools${school}.aws_dynamodb_table.users"
           TARGETS="$TARGETS -target=module.schools${school}.aws_dynamodb_table.time_attendance"
           TARGETS="$TARGETS -target=module.schools${school}.aws_iam_role.apprunner_role"
@@ -124,13 +128,17 @@ jobs:
       # Step 10: Terraform apply App Runner + Route 53
       - name: Terraform Apply App Runner + Route53
         run: |
-          # Convert comma-separated secret into a JSON-style list
-          SCHOOLS_JSON=$(echo "[\"$(echo $SCHOOLS | sed 's/,/","/g')\"]")
+          # Convert comma-separated string into a Bash array
+          IFS=',' read -ra SCHOOLS_ARRAY <<< "$SCHOOLS"
+          
+          # Generate JSON-style array for Terraform variable
+          SCHOOLS_JSON=$(printf '%s\n' "${SCHOOLS_ARRAY[@]}" | jq -R . | jq -s .)
+          
           # Initialize an empty string for all targets
           TARGETS=""
           
           # Loop through schools and add the resource addresses dynamically
-          for school in $SCHOOLS_JSON; do
+          for school in "${SCHOOLS_ARRAY[@]}"; do
           TARGETS="$TARGETS -target=module.schools${school}.aws_apprunner_service.service"
           TARGETS="$TARGETS -target=module.schools${school}.aws_apprunner_custom_domain_association.domain"
           TARGETS="$TARGETS -target=module.schools${school}.aws_route53_record.school_subdomain"
@@ -144,13 +152,17 @@ jobs:
       # Step 11: Terraform apply cert validation
       - name: Terraform Apply Certificate Validation
         run: |
-          # Convert comma-separated secret into a JSON-style list
-          SCHOOLS_JSON=$(echo "[\"$(echo $SCHOOLS | sed 's/,/","/g')\"]")
+          # Convert comma-separated string into a Bash array
+          IFS=',' read -ra SCHOOLS_ARRAY <<< "$SCHOOLS"
+          
+          # Generate JSON-style array for Terraform variable
+          SCHOOLS_JSON=$(printf '%s\n' "${SCHOOLS_ARRAY[@]}" | jq -R . | jq -s .)
+          
           # Initialize an empty string for all targets
           TARGETS=""
           
           # Loop through schools and add the resource addresses dynamically
-          for school in $SCHOOLS_JSON; do
+          for school in "${SCHOOLS_ARRAY[@]}"; do
           TARGETS="$TARGETS -target=module.schools${school}.aws_route53_record.validation"
           done
           
