@@ -39,6 +39,9 @@ jobs:
       WORKSPACE: ${{ needs.determine-env.outputs.workspace }}
 
     steps:
+      - name: Debug environment
+        run: |
+          echo "Environment name: '${{ needs.determine-env.outputs.environment }}'"
       - name: Debug schools
         run: |
           echo "SCHOOLS: $SCHOOLS"
