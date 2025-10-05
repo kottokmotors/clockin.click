@@ -39,6 +39,11 @@ jobs:
       WORKSPACE: ${{ needs.determine-env.outputs.workspace }}
 
     steps:
+      - name: Debug schools
+        run: |
+          echo "SCHOOLS: $SCHOOLS"
+          echo "SCHOOLS_JSON: $(echo "[\"$(echo $SCHOOLS | sed 's/,/\",\"/g')\"]")"      
+
       # Step 0: Checkout repo
       - name: Checkout repository
         uses: actions/checkout@v3
