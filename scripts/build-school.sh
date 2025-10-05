@@ -9,7 +9,10 @@ set -euo pipefail
 SECRET_NAME="${SECRET_NAME:-clockinclick-app-secrets}"
 ASSETS_BUCKET="${ASSETS_BUCKET:-clockinclick-school-assets}"
 PARALLEL_LIMIT="${PARALLEL_LIMIT:-4}"
-CACHE_IMAGE="${CACHE_IMAGE:-${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/${ECR_REPO}:build-cache}"
+
+# Use local cache directory
+LOCAL_CACHE_DIR="${LOCAL_CACHE_DIR:-/tmp/docker-cache}"
+mkdir -p "$LOCAL_CACHE_DIR"
 
 # --- Colors ---
 NC='\033[0m'
@@ -29,14 +32,8 @@ echo -e "${CYAN}🏗️  Starting parallel Docker builds for:${NC} $SCHOOLS"
 echo -e "${CYAN}🔐 Using secret:${NC} $SECRET_NAME"
 echo -e "${CYAN}🪣 Using assets bucket:${NC} $ASSETS_BUCKET"
 echo -e "${CYAN}⚙️  Parallel limit:${NC} $PARALLEL_LIMIT"
+echo -e "${CYAN}💾 Local cache directory:${NC} $LOCAL_CACHE_DIR"
 echo ""
-
-# Attempt to pull build cache
-if docker pull "$CACHE_IMAGE" >/dev/null 2>&1; then
-  echo -e "${GREEN}✅ Using cached base image${NC}"
-else
-  echo -e "${YELLOW}ℹ️ No cache image found; cold build${NC}"
-fi
 
 # Shared summary tracking
 SUMMARY_FILE=$(mktemp)
@@ -91,8 +88,8 @@ build_school() {
   # --- Build & push ---
   if docker build \
       --build-arg SCHOOL_NAME="$school" \
-      --cache-from "$CACHE_IMAGE" \
-      --cache-to "type=registry,ref=$CACHE_IMAGE,mode=max" \
+      --cache-from "type=local,src=$LOCAL_CACHE_DIR" \
+      --cache-to "type=local,dest=$LOCAL_CACHE_DIR,mode=max" \
       -t "$IMAGE_URI" ./; then
     docker push "$IMAGE_URI"
     log "$school" "$color" "✅ Build & push complete"
@@ -111,7 +108,7 @@ build_school() {
 }
 
 export -f build_school log timestamp
-export AWS_ACCOUNT_ID AWS_REGION ECR_REPO SECRET_NAME ASSETS_BUCKET CACHE_IMAGE SUMMARY_FILE FAILED_SCHOOLS
+export AWS_ACCOUNT_ID AWS_REGION ECR_REPO SECRET_NAME ASSETS_BUCKET LOCAL_CACHE_DIR SUMMARY_FILE FAILED_SCHOOLS
 
 COLORS=("\033[1;35m" "\033[1;34m" "\033[1;36m" "\033[1;33m" "\033[1;32m" "\033[1;31m")
 
