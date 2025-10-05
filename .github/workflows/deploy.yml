@@ -20,15 +20,6 @@ jobs:
       WORKSPACE: ${{ github.ref == 'refs/heads/master' && 'production' || 'testing' }}
 
     steps:
-      - name: Debug environment
-        run: |
-          echo "Environment name: '${{ needs.determine-env.outputs.environment }}'"
-      - name: Debug schools
-        run: |
-          echo "SCHOOLS: $SCHOOLS"
-          echo "SCHOOLS_JSON: $(echo "[\"$(echo $SCHOOLS | sed 's/,/\",\"/g')\"]")"
-          echo "Running in environment: $GITHUB_ENVIRONMENT"
-
       # Step 0: Checkout repo
       - name: Checkout repository
         uses: actions/checkout@v3
