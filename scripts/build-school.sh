@@ -42,6 +42,9 @@ fi
 SUMMARY_FILE=$(mktemp)
 echo "SCHOOL,STATUS,DURATION" > "$SUMMARY_FILE"
 
+# Track failures
+FAILED_SCHOOLS=()
+
 build_school() {
   local school="$1"; local color="$2"
   local start_time=$(date +%s)
@@ -96,6 +99,7 @@ build_school() {
   else
     log "$school" "$RED" "❌ Docker build failed"
     status="FAILED"
+    FAILED_SCHOOLS+=("$school")
   fi
 
   local duration=$(( $(date +%s) - start_time ))
@@ -104,36 +108,20 @@ build_school() {
   popd >/dev/null
   rm -rf "$tmp_dir"
   log "$school" "$color" "🧼 Cleanup done"
-
-  # Return non-zero if failed
-  if [ "$status" = "FAILED" ]; then
-    return 1
-  fi
 }
 
 export -f build_school log timestamp
-export AWS_ACCOUNT_ID AWS_REGION ECR_REPO SECRET_NAME ASSETS_BUCKET CACHE_IMAGE SUMMARY_FILE
+export AWS_ACCOUNT_ID AWS_REGION ECR_REPO SECRET_NAME ASSETS_BUCKET CACHE_IMAGE SUMMARY_FILE FAILED_SCHOOLS
 
 COLORS=("\033[1;35m" "\033[1;34m" "\033[1;36m" "\033[1;33m" "\033[1;32m" "\033[1;31m")
 
-# --- Run parallel builds with fail-fast ---
-FAIL_FAST=0
-PIPE=$(mktemp -u)
-mkfifo "$PIPE"
-exec 3<>"$PIPE"
-rm "$PIPE"
-
-for school in $SCHOOLS; do
-  read -u 3 || true
-  {
-    color="${COLORS[$((RANDOM % ${#COLORS[@]}))]}"
-    build_school "$school" "$color" || FAIL_FAST=1
-    echo >&3
-  } &
-done
-
-wait
-exec 3>&-
+# --- Run parallel builds with xargs ---
+echo "$SCHOOLS" | tr ' ' '\n' | \
+  awk -v colors="${COLORS[*]}" '{
+    split(colors, c);
+    print $0, c[(NR-1)%length(c)+1];
+  }' | \
+  xargs -P "$PARALLEL_LIMIT" -n2 bash -c 'build_school "$@"' _
 
 # --- Show summary ---
 echo ""
@@ -151,9 +139,9 @@ if [ -n "${GITHUB_STEP_SUMMARY-}" ]; then
   echo '```' >> "$GITHUB_STEP_SUMMARY"
 fi
 
-# --- Exit with failure if any build failed ---
-if [ "$FAIL_FAST" -ne 0 ]; then
-  echo -e "${RED}❌ One or more schools failed to build. Exiting.${NC}"
+# --- Exit with failure if any school failed ---
+if [ "${#FAILED_SCHOOLS[@]}" -gt 0 ]; then
+  echo -e "${RED}❌ The following schools failed to build: ${FAILED_SCHOOLS[*]}${NC}"
   exit 1
 fi
 
