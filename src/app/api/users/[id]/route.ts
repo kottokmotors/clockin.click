@@ -1,6 +1,6 @@
 // /app/api/users/[id]/route.ts
 import { NextRequest, NextResponse } from "next/server";
-import { getUserById, updateUserStatus, client, USERS_TABLE } from "@/utils/dynamo";
+import { getUserById, updateUserStatus, client, USERS_TABLE, logTimeClock } from "@/utils/dynamo";
 import { DeleteItemCommand } from "@aws-sdk/client-dynamodb";
 
 export async function GET(
@@ -21,18 +21,26 @@ export async function PATCH(
 ) {
     const { id } = await context.params;
     const body = await req.json();
-    const { status } = body;
+    const { status, userType, clockedById } = body; // userType optional; fallback if you store it elsewhere
 
     if (!["In", "Out"].includes(status)) {
         return NextResponse.json({ error: "Invalid status" }, { status: 400 });
     }
 
     try {
+        // 1️⃣ Update user state in your app
         const updatedUser = await updateUserStatus(id, status);
+
+        // 2️⃣ Log to DynamoDB
+        await logTimeClock(id, userType || "Learner", status, clockedById);
+
         return NextResponse.json(updatedUser);
     } catch (err) {
         console.error(err);
-        return NextResponse.json({ error: "Failed to update status" }, { status: 500 });
+        return NextResponse.json(
+            { error: "Failed to update status or log timeclock" },
+            { status: 500 }
+        );
     }
 }
 

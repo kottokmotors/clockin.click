@@ -47,13 +47,13 @@ export default function PinEntry() {
         setError("");
     };
 
-    const handleClock = async (userId: string, newStatus: string) => {
+    const handleClock = async (userId: string, newStatus: string, userType: string, clockedById: string) => {
         setLoading(true);
         try {
             const res = await fetch(`/api/users/${userId}`, {
                 method: "PATCH",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ status: newStatus }),
+                body: JSON.stringify({ status: newStatus, userType: userType, clockedById: clockedById}),
             });
             if (!res.ok) throw new Error("Failed to update status");
 
@@ -73,6 +73,11 @@ export default function PinEntry() {
         user.roles.some((r) => ["staff", "learner", "volunteer", "guardian"].includes(r.toLowerCase()));
 
     const isGuardian = user?.roles.includes("guardian");
+    const userType = user?.roles.includes("staff")
+        ? "staff"
+        : user?.roles.includes("volunteer")
+            ? "volunteer"
+            : "";
 
     return (
         <div className="flex flex-col items-center min-h-screen p-4 pt-20 bg-gray-100">
@@ -120,7 +125,7 @@ export default function PinEntry() {
                     {canClockSelf && (
                         <div className="flex gap-4">
                             <button
-                                onClick={() => handleClock(user.userId, "In")}
+                                onClick={() => handleClock(user.userId, "In", userType, user?.userId)}
                                 className={`px-4 py-2 rounded text-white
                                                 ${user.status?.toLowerCase() === "in"
                                     ? "bg-gray-400 cursor-not-allowed"
@@ -130,7 +135,7 @@ export default function PinEntry() {
                                 Clock In
                             </button>
                             <button
-                                onClick={() => handleClock(user.userId, "Out")}
+                                onClick={() => handleClock(user.userId, "Out", userType, user?.userId)}
                                 className={`px-4 py-2 rounded text-white
                                                 ${user.status?.toLowerCase() === "out"
                                     ? "bg-gray-400 cursor-not-allowed"
@@ -156,7 +161,7 @@ export default function PinEntry() {
                     </span>
                                         <div className="flex gap-8">
                                             <button
-                                                onClick={() => handleClock(learner.userId, "In")}
+                                                onClick={() => handleClock(learner.userId, "In", "learner", user?.userId)}
                                                 className={`px-2 py-1 rounded text-white
                                                 ${learner.status?.toLowerCase() === "in"
                                                     ? "bg-gray-400 cursor-not-allowed"
@@ -166,7 +171,7 @@ export default function PinEntry() {
                                                 In
                                             </button>
                                             <button
-                                                onClick={() => handleClock(learner.userId, "Out")}
+                                                onClick={() => handleClock(learner.userId, "Out", "learner", user?.userId)}
                                                 className={`px-2 py-1 rounded text-white
                                                 ${learner.status?.toLowerCase() === "out"
                                                     ? "bg-gray-400 cursor-not-allowed"

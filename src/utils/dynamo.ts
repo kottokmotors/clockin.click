@@ -11,6 +11,7 @@ import { isGuardian, BaseUser, GuardianUser, RegularUser, User } from "@/types/u
 
 export const client = new DynamoDBClient({ region: process.env.AWS_REGION });
 export const USERS_TABLE = `clockinclick-${process.env.SCHOOL_NAME}-Users` || "users";
+export const TIME_ATTENDANCE_TABLE = `clockinclick-${process.env.SCHOOL_NAME}-TimeAttendance`;
 
 // ---------- Helpers ----------
 const getString = (val?: AttributeValue): string | undefined =>
@@ -289,3 +290,27 @@ export const updateUserStatus = async (
     return await getUserById(userId);
 };
 
+export async function logTimeClock(
+    userId: string,
+    userType: string,
+    status: "In" | "Out",
+    clockedById: string
+) {
+    const now = new Date();
+    const yearMonth = now.toISOString().slice(0, 7);
+    const UserTypeYearMonth = `${userType}#${yearMonth}`;
+    const DateTimeStamp = now.toISOString();
+
+    const params = {
+        TableName: TIME_ATTENDANCE_TABLE,
+        Item: {
+            UserTypeYearMonth: { S: UserTypeYearMonth },
+            DateTimeStamp: { S: DateTimeStamp },
+            UserId: { S: userId },
+            State: { S: status },
+            ClockedBy: { S: clockedById },
+        },
+    };
+
+    await client.send(new PutItemCommand(params));
+}

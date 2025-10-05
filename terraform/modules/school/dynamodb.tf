@@ -43,12 +43,39 @@ resource "aws_dynamodb_table" "users" {
 # DynamoDB TimeAttendance table
 resource "aws_dynamodb_table" "time_attendance" {
   name         = "${var.project_name}-${var.school_id}-TimeAttendance"
-  billing_mode = "PAY_PER_REQUEST"
-  hash_key     = "recordId"
+  hash_key                    = "UserTypeYearMonth"
+  range_key                   = "DateTimeStamp"
+  billing_mode                = "PAY_PER_REQUEST"
+  deletion_protection_enabled = true
+  point_in_time_recovery {
+    enabled = true
+  }
 
   attribute {
-    name = "recordId"
+    name = "UserTypeYearMonth"
     type = "S"
+  }
+
+  attribute {
+    name = "DateTimeStamp"
+    type = "S"
+  }
+
+  attribute {
+    name = "UserId"
+    type = "S"
+  }
+
+  attribute {
+    name = "ClockedBy"
+    type = "S"
+  }
+
+  global_secondary_index {
+    name            = "UserIdIndex"
+    hash_key        = "UserId"
+    range_key       = "DateTimeStamp" # <-- added sort key
+    projection_type = "ALL"
   }
 
   tags = {
