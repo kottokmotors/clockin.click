@@ -1,6 +1,6 @@
 # IAM access role for App Runner
 resource "aws_iam_role" "apprunner_access_role" {
-  name = "${var.project_name}-${var.school_id}-apprunner-role"
+  name = "${var.project_name}-${var.school_id}-apprunner-access-role"
 
   assume_role_policy = jsonencode({
     Version = "2012-10-17",
@@ -77,6 +77,11 @@ resource "aws_iam_policy" "apprunner_instance_role_policy" {
           "${aws_dynamodb_table.users.arn}*",
           "${aws_dynamodb_table.time_attendance.arn}*"
         ]
+      },
+      {
+        Effect  = "Allow"
+        Action  = ["ecr:*"]
+        Resource= "*"
       }
     ]
   })
