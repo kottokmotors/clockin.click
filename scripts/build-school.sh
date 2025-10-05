@@ -1,20 +1,19 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+# === Required environment variables ===
 : "${SCHOOLS:?SCHOOLS not set}"
 : "${AWS_ACCOUNT_ID:?AWS_ACCOUNT_ID not set}"
 : "${AWS_REGION:?AWS_REGION not set}"
 : "${ECR_REPO:?ECR_REPO not set}"
 
+# === Configurable defaults ===
 SECRET_NAME="${SECRET_NAME:-clockinclick-app-secrets}"
 ASSETS_BUCKET="${ASSETS_BUCKET:-clockinclick-school-assets}"
 PARALLEL_LIMIT="${PARALLEL_LIMIT:-4}"
+LOCAL_CACHE_DIR="/tmp/docker-cache"
 
-# Use local cache directory
-LOCAL_CACHE_DIR="${LOCAL_CACHE_DIR:-/tmp/docker-cache}"
-mkdir -p "$LOCAL_CACHE_DIR"
-
-# --- Colors ---
+# === Colors ===
 NC='\033[0m'
 CYAN='\033[0;36m'
 YELLOW='\033[1;33m'
@@ -32,10 +31,23 @@ echo -e "${CYAN}🏗️  Starting parallel Docker builds for:${NC} $SCHOOLS"
 echo -e "${CYAN}🔐 Using secret:${NC} $SECRET_NAME"
 echo -e "${CYAN}🪣 Using assets bucket:${NC} $ASSETS_BUCKET"
 echo -e "${CYAN}⚙️  Parallel limit:${NC} $PARALLEL_LIMIT"
-echo -e "${CYAN}💾 Local cache directory:${NC} $LOCAL_CACHE_DIR"
 echo ""
 
-# Shared summary tracking
+# === Prepare BuildKit and buildx ===
+export DOCKER_BUILDKIT=1
+export BUILDKIT_PROGRESS=plain
+
+if ! docker buildx inspect builder >/dev/null 2>&1; then
+  echo -e "${CYAN}🧱 Setting up docker buildx builder...${NC}"
+  docker buildx create --use --driver docker-container
+else
+  echo -e "${CYAN}✅ Docker buildx builder already configured${NC}"
+fi
+
+# Ensure local cache directory exists
+mkdir -p "$LOCAL_CACHE_DIR"
+
+# === Shared summary tracking ===
 SUMMARY_FILE=$(mktemp)
 echo "SCHOOL,STATUS,DURATION" > "$SUMMARY_FILE"
 
@@ -56,7 +68,7 @@ build_school() {
 
   log "$school" "$color" "🏫 Building image → ${IMAGE_URI}"
 
-  # --- Secrets ---
+  # === Secrets ===
   log "$school" "$color" "📦 Fetching secrets..."
   if ! aws secretsmanager get-secret-value \
       --secret-id "$SECRET_NAME" \
@@ -75,7 +87,7 @@ build_school() {
     log "$school" "$color" "✅ .env.production ready"
   fi
 
-  # --- Logo ---
+  # === Logo ===
   local LOGO_KEY="$school/images/logo.png"
   local LOGO_DEST="public/images/logo.png"
   log "$school" "$color" "🖼️ Downloading logo..."
@@ -85,13 +97,14 @@ build_school() {
     log "$school" "$color" "ℹ️ Using fallback logo"
   fi
 
-  # --- Build & push ---
-  if docker build \
+  # === Build & push ===
+  log "$school" "$color" "🚀 Building and pushing Docker image..."
+  if docker buildx build \
       --build-arg SCHOOL_NAME="$school" \
       --cache-from "type=local,src=$LOCAL_CACHE_DIR" \
       --cache-to "type=local,dest=$LOCAL_CACHE_DIR,mode=max" \
-      -t "$IMAGE_URI" ./; then
-    docker push "$IMAGE_URI"
+      --push \
+      -t "$IMAGE_URI" .; then
     log "$school" "$color" "✅ Build & push complete"
   else
     log "$school" "$RED" "❌ Docker build failed"
@@ -112,22 +125,22 @@ export AWS_ACCOUNT_ID AWS_REGION ECR_REPO SECRET_NAME ASSETS_BUCKET LOCAL_CACHE_
 
 COLORS=("\033[1;35m" "\033[1;34m" "\033[1;36m" "\033[1;33m" "\033[1;32m" "\033[1;31m")
 
-# --- Run parallel builds with xargs ---
-echo "$SCHOOLS" | tr ' ' '\n' | \
+# === Run parallel builds ===
+echo "$SCHOOLS" | tr ',' '\n' | \
   awk -v colors="${COLORS[*]}" '{
     split(colors, c);
     print $0, c[(NR-1)%length(c)+1];
   }' | \
   xargs -P "$PARALLEL_LIMIT" -n2 bash -c 'build_school "$@"' _
 
-# --- Show summary ---
+# === Summary ===
 echo ""
 echo -e "${CYAN}📊 Build Summary:${NC}"
 echo "---------------------------------------------"
 column -t -s, "$SUMMARY_FILE" | sed "1 s/^/${YELLOW}/; 1 s/\$/${NC}/"
 echo "---------------------------------------------"
 
-# --- GitHub Actions Summary ---
+# === GitHub Actions summary ===
 if [ -n "${GITHUB_STEP_SUMMARY-}" ]; then
   echo "## 🧱 Build Summary" >> "$GITHUB_STEP_SUMMARY"
   echo "" >> "$GITHUB_STEP_SUMMARY"
@@ -136,7 +149,7 @@ if [ -n "${GITHUB_STEP_SUMMARY-}" ]; then
   echo '```' >> "$GITHUB_STEP_SUMMARY"
 fi
 
-# --- Exit with failure if any school failed ---
+# === Exit on failure ===
 if [ "${#FAILED_SCHOOLS[@]}" -gt 0 ]; then
   echo -e "${RED}❌ The following schools failed to build: ${FAILED_SCHOOLS[*]}${NC}"
   exit 1
