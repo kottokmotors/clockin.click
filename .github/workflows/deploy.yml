@@ -92,59 +92,9 @@ jobs:
 
       # Step 9: Build & push Docker images per school
       - name: Build and Push Docker Images
-        env:
-          AWS_REGION: ${{ env.AWS_REGION }}
         run: |
-          set -euo pipefail
-          
-          for school in $SCHOOLS; do
-            SCHOOL_LOWER=$(echo "$school" | tr '[:upper:]' '[:lower:]' | tr ' ' '-')
-            IMAGE_URI="${{ env.AWS_ACCOUNT_ID }}.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com/${ECR_REPO}:${SCHOOL_LOWER}-latest"
-          
-            echo "🏫 Building and pushing Docker image for $school -> $IMAGE_URI"
-          
-            # --- 1️⃣ Retrieve secrets and create .env ---
-            SECRET_NAME="clockinclick-app-secrets"   # adjust if your secret names differ
-            echo "Fetching secrets for $SECRET_NAME from AWS Secrets Manager..."
-          
-            aws secretsmanager get-secret-value \
-              --secret-id "$SECRET_NAME" \
-              --region "${AWS_REGION}" \
-              --query 'SecretString' \
-              --output text > secrets.json
-          
-            jq -r 'to_entries | map("\(.key)=\(.value)") | .[]' secrets.json > .env.production
-            rm secrets.json
-            echo "✅ .env file created for $school"
-          
-            # Append NEXTAUTH_URL based on school name
-            NEXTAUTH_URL="https://$school.clockin.click"
-            echo "NEXTAUTH_URL=$NEXTAUTH_URL" >> .env.production
-          
-            # Append SCHOOL_NAME based on school name
-            SCHOOL_NAME=$school
-            echo "SCHOOL_NAME=$SCHOOL_NAME" >> .env.production
-         
-            # --- 2️⃣ Download logo from S3 (optional overwrite) ---
-            LOGO_KEY="$school/images/logo.png"
-            LOGO_DEST="public/images/logo.png"
-          
-            echo "Attempting to download logo s3://clockinclick-school-assets/$LOGO_KEY"
-            aws s3 cp "s3://clockinclick-school-assets/$LOGO_KEY" "$LOGO_DEST" \
-              --region "${AWS_REGION}" \
-              && echo "✅ Custom logo found and applied for $school" \
-              || echo "ℹ️ No custom logo found — using fallback logo."
-          
-          
-            # --- 3️⃣ Build & push Docker image ---
-            docker build -t "$IMAGE_URI" ./
-          
-            docker push "$IMAGE_URI"
-          
-            echo "✅ Finished building and pushing image for $school"
-            echo ""
-          done
-
+          chmod +x scripts/build-school.sh
+          ./scripts/build-school.sh
 
       # Step 10: Terraform apply App Runner + Route 53
       - name: Terraform Apply App Runner + Route53
