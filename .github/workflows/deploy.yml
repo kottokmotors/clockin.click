@@ -77,7 +77,7 @@ jobs:
       - name: Terraform Apply Environment Infra
         run: |
           # Convert comma-separated secret into a JSON-style list
-          SCHOOLS_JSON=$(echo "[\"$(echo ${{ env.SCHOOLS }} | sed 's/,/","/g')\"]")
+          SCHOOLS_JSON=$(echo "[\"$(echo $SCHOOLS | sed 's/,/","/g')\"]")
           # Initialize an empty string for all targets
           TARGETS=""
       
@@ -125,7 +125,7 @@ jobs:
       - name: Terraform Apply App Runner + Route53
         run: |
           # Convert comma-separated secret into a JSON-style list
-          SCHOOLS_JSON=$(echo "[\"$(echo ${{ env.SCHOOLS }} | sed 's/,/","/g')\"]")
+          SCHOOLS_JSON=$(echo "[\"$(echo $SCHOOLS | sed 's/,/","/g')\"]")
           # Initialize an empty string for all targets
           TARGETS=""
           
@@ -145,7 +145,7 @@ jobs:
       - name: Terraform Apply Certificate Validation
         run: |
           # Convert comma-separated secret into a JSON-style list
-          SCHOOLS_JSON=$(echo "[\"$(echo ${{ env.SCHOOLS }} | sed 's/,/","/g')\"]")
+          SCHOOLS_JSON=$(echo "[\"$(echo $SCHOOLS | sed 's/,/","/g')\"]")
           # Initialize an empty string for all targets
           TARGETS=""
           
