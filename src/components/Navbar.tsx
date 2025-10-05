@@ -26,8 +26,8 @@ export default function Navbar() {
             <div className="flex gap-6 text-gray-700">
                 {session && (
                     <>
-                        <Link href="/dashboard" className="hover:text-blue-600">
-                            Dashboard
+                        <Link href="/users" className="hover:text-blue-600">
+                            User Management
                         </Link>
                         <Link href="/reports" className="hover:text-blue-600">
                             Reports

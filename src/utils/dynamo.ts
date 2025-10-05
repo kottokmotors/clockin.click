@@ -6,6 +6,8 @@ import {
     UpdateItemCommand,
     UpdateItemCommandInput,
     AttributeValue,
+    ScanCommand,
+    ScanCommandOutput
 } from "@aws-sdk/client-dynamodb";
 import { isGuardian, BaseUser, GuardianUser, RegularUser, User } from "@/types/user";
 
@@ -314,3 +316,76 @@ export async function logTimeClock(
 
     await client.send(new PutItemCommand(params));
 }
+
+/**
+ * Checks if a user with a given email has the 'administrator' role using GSI.
+ * @param email - user's email
+ * @returns boolean - true if admin
+ */
+export const isAdmin = async (email: string): Promise<boolean> => {
+    try {
+        const result = await client.send(
+            new QueryCommand({
+                TableName: USERS_TABLE,
+                IndexName: "EmailIndex",
+                KeyConditionExpression: "Email = :email",
+                ExpressionAttributeValues: {
+                    ":email": { S: email },
+                },
+                Limit: 1,
+            })
+        );
+
+        if (!result.Items || result.Items.length === 0) return false;
+
+        const user = await unmarshallUser(result.Items[0]);
+        return user.roles.includes("administrator");
+    } catch (err) {
+        console.error("Error checking admin:", err);
+        return false;
+    }
+};
+
+/**
+ * Fetch all users from the DynamoDB Users table
+ */
+export const getAllUsers = async (): Promise<User[]> => {
+    let users: User[] = [];
+    let lastEvaluatedKey: Record<string, AttributeValue> | undefined = undefined;
+
+    do {
+        const result: ScanCommandOutput = await client.send(
+            new ScanCommand({
+                TableName: USERS_TABLE,
+                ExclusiveStartKey: lastEvaluatedKey,
+            })
+        );
+
+        if (result.Items) {
+            const batch = await Promise.all(result.Items.map(unmarshallUser));
+            users = users.concat(batch);
+        }
+
+        lastEvaluatedKey = result.LastEvaluatedKey;
+    } while (lastEvaluatedKey);
+
+    return users;
+};
+
+export const updateUser = async (userId: string, updates: Partial<User>): Promise<User | null> => {
+    // Build the DynamoDB update command
+    const updateCommand: Omit<UpdateItemCommandInput, "TableName"> = marshallUserUpdate(userId, updates);
+
+    const command = new UpdateItemCommand({
+        TableName: USERS_TABLE,
+        Key: updateCommand.Key,
+        UpdateExpression: updateCommand.UpdateExpression,
+        ExpressionAttributeNames: updateCommand.ExpressionAttributeNames,
+        ExpressionAttributeValues: updateCommand.ExpressionAttributeValues,
+    });
+
+    await client.send(command);
+
+    // Return the updated user (hydrated)
+    return await getUserById(userId);
+};

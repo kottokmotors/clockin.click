@@ -4,3 +4,46 @@
   --font-sans: Nunito, sans-serif;
 }
 
+@keyframes slide-in {
+    0% {
+        opacity: 0;
+        transform: translateY(-10px);
+    }
+    100% {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+@keyframes dropdown-in {
+    0% {
+        opacity: 0;
+        transform: scaleY(0.95);
+    }
+    100% {
+        opacity: 1;
+        transform: scaleY(1);
+    }
+}
+
+@keyframes dropdown-out {
+    0% {
+        opacity: 1;
+        transform: scaleY(1);
+    }
+    100% {
+        opacity: 0;
+        transform: scaleY(0.95);
+    }
+}
+
+.animate-dropdown-in {
+    animation: dropdown-in 0.2s ease-out forwards;
+    transform-origin: top;
+}
+
+.animate-dropdown-out {
+    animation: dropdown-out 0.2s ease-in forwards;
+    transform-origin: top;
+}
+

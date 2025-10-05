@@ -2,12 +2,15 @@
 
 import { useState } from "react";
 import { User } from "@/types/user"; // Use the centralized User type
+import { ClockButton } from '@/components/ClockButton'
+import StatusBadge from "@/components/StatusBadge";
 
 export default function PinEntry() {
     const [pin, setPin] = useState("");
     const [user, setUser] = useState<User | null>(null);
     const [error, setError] = useState("");
     const [loading, setLoading] = useState(false);
+    const [loadingAction, setLoadingAction] = useState<string | null>(null);
 
     const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const value = e.target.value.replace(/\D/g, ""); // only numbers
@@ -49,8 +52,10 @@ export default function PinEntry() {
 
     const handleClock = async (userId: string, newStatus: string, userType: string, clockedById: string) => {
         setLoading(true);
+        const key = `${userId}-${newStatus}`;
         try {
-            const res = await fetch(`/api/users/${userId}`, {
+            setLoadingAction(key);
+            const res = await fetch(`/api/users/${userId}/status`, {
                 method: "PATCH",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ status: newStatus, userType: userType, clockedById: clockedById}),
@@ -65,19 +70,20 @@ export default function PinEntry() {
             setError("Failed to update status");
         } finally {
             setLoading(false);
+            setLoadingAction(null)
         }
     };
 
     const canClockSelf =
         user &&
-        user.roles.some((r) => ["staff", "learner", "volunteer", "guardian"].includes(r.toLowerCase()));
+        user.roles.some((r) => ["staff", "volunteer"].includes(r.toLowerCase()));
 
     const isGuardian = user?.roles.includes("guardian");
     const userType = user?.roles.includes("staff")
         ? "staff"
         : user?.roles.includes("volunteer")
             ? "volunteer"
-            : "";
+            : "learner";
 
     return (
         <div className="flex flex-col items-center min-h-screen p-4 pt-20 bg-gray-100">
@@ -115,72 +121,74 @@ export default function PinEntry() {
                     </div>
                 </form>
             ) : (
-                <div className="bg-white p-6 rounded shadow text-center flex flex-col gap-4 items-center w-full max-w-md">
+                <div className="bg-white p-6 rounded shadow text-center flex flex-col gap-4 items-center w-full max-w-2xl">
                     <h2 className="text-3xl font-semibold">
                         Welcome, {user.firstName} {user.lastName}!
                     </h2>
                     <p>Roles: {user.roles.join(", ")}</p>
-                    {user.status && <p>Status: {user.status}</p>}
+                    {user.status && <p>Status: <StatusBadge status={user.status}/></p>}
 
                     {canClockSelf && (
                         <div className="flex gap-4">
-                            <button
-                                onClick={() => handleClock(user.userId, "In", userType, user?.userId)}
-                                className={`px-4 py-2 rounded text-white
-                                                ${user.status?.toLowerCase() === "in"
-                                    ? "bg-gray-400 cursor-not-allowed"
-                                    : "bg-green-600 hover:bg-green-700"}`}
-                                disabled={user.status?.toLowerCase() === "in"}
-                            >
-                                Clock In
-                            </button>
-                            <button
-                                onClick={() => handleClock(user.userId, "Out", userType, user?.userId)}
-                                className={`px-4 py-2 rounded text-white
-                                                ${user.status?.toLowerCase() === "out"
-                                    ? "bg-gray-400 cursor-not-allowed"
-                                    : "bg-red-600 hover:bg-red-700"}`}
-                                disabled={user.status?.toLowerCase() === "out"}
-                            >
-                                Clock Out
-                            </button>
+                            <ClockButton
+                                userId={user.userId}
+                                status="In"
+                                type={userType}       // "staff" or "volunteer"
+                                actorId={user?.userId}
+                                currentStatus={user.status}
+                                loadingAction={loadingAction}
+                                handleClock={handleClock}
+                            />
+
+                            <ClockButton
+                                userId={user.userId}
+                                status="Out"
+                                type={userType}
+                                actorId={user?.userId}
+                                currentStatus={user.status}
+                                loadingAction={loadingAction}
+                                handleClock={handleClock}
+                            />
+
                         </div>
+
                     )}
 
-                    {isGuardian && user.learners ? (
+                    {isGuardian && (user.learners?.length ?? 0) > 0 ? (
                         <div className="mt-4 w-full">
                             <h3 className="font-semibold mb-2">Your Learners</h3>
                             <ul className="space-y-2">
-                                {user.learners.map((learner) => (
+                                {user.learners?.map((learner) => (
                                     <li
                                         key={learner.userId}
                                         className="flex justify-between items-center border text-2xl p-2 rounded"
                                     >
                     <span>
-                      {learner.firstName} {learner.lastName} {learner.status ? `(${learner.status})` : ""}
+                      {learner.firstName} {learner.lastName} {learner.status ? <StatusBadge status={user.status}/> : ""}
                     </span>
                                         <div className="flex gap-8">
-                                            <button
-                                                onClick={() => handleClock(learner.userId, "In", "learner", user?.userId)}
-                                                className={`px-2 py-1 rounded text-white
-                                                ${learner.status?.toLowerCase() === "in"
-                                                    ? "bg-gray-400 cursor-not-allowed"
-                                                    : "bg-green-600 hover:bg-green-700"}`}
-                                                disabled={learner.status?.toLowerCase() === "in"}
-                                            >
-                                                In
-                                            </button>
-                                            <button
-                                                onClick={() => handleClock(learner.userId, "Out", "learner", user?.userId)}
-                                                className={`px-2 py-1 rounded text-white
-                                                ${learner.status?.toLowerCase() === "out"
-                                                    ? "bg-gray-400 cursor-not-allowed"
-                                                    : "bg-red-600 hover:bg-red-700"}`}
-                                                disabled={learner.status?.toLowerCase() === "out"}
-                                            >
-                                                Out
-                                            </button>
+                                            <ClockButton
+                                                userId={learner.userId}
+                                                status="In"
+                                                type="learner"
+                                                actorId={user?.userId}
+                                                currentStatus={learner.status}
+                                                loadingAction={loadingAction}
+                                                handleClock={handleClock}
+                                            />
+
+                                            <ClockButton
+                                                userId={learner.userId}
+                                                status="Out"
+                                                type="learner"
+                                                actorId={user?.userId}
+                                                currentStatus={learner.status}
+                                                loadingAction={loadingAction}
+                                                handleClock={handleClock}
+                                            />
+
                                         </div>
+
                                     </li>
                                 ))}
                             </ul>
