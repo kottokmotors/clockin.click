@@ -23,7 +23,7 @@ jobs:
             echo "environment=Prod" >> $GITHUB_OUTPUT
           else
             echo "workspace=testing" >> $GITHUB_OUTPUT
-            echo "environment=Prod" >> $GITHUB_OUTPUT
+            echo "environment=Dev" >> $GITHUB_OUTPUT
           fi
 
   deploy:
