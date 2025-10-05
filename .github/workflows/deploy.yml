@@ -58,10 +58,14 @@ jobs:
           terraform -chdir=${{ env.TERRAFORM_DIR }} workspace select $WORKSPACE || \
           terraform -chdir=${{ env.TERRAFORM_DIR }} workspace new $WORKSPACE
           echo "Using Terraform workspace: $WORKSPACE"
+          
+      
 
       # Step 7: Terraform apply environment-specific infra (DynamoDB + IAM)
       - name: Terraform Apply Environment Infra
         run: |
+          terraform state list | grep schools
+
           # Convert comma-separated string into a Bash array
           IFS=',' read -ra SCHOOLS_ARRAY <<< "$SCHOOLS"
   
