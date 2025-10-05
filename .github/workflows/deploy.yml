@@ -10,8 +10,8 @@ permissions:
 jobs:
   deploy:
     name: Deploy with Docker
-    environment: ${{ github.ref == 'refs/heads/master' && 'Prod' || 'Dev' }}
     runs-on: ubuntu-latest
+    environment: ${{ github.ref == 'refs/heads/master' && 'Prod' || 'Dev' }}
     env:
       AWS_REGION: us-east-1
       AWS_ACCOUNT_ID: ${{ secrets.AWS_ACCOUNT_ID }}
