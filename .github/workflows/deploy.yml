@@ -11,13 +11,18 @@ jobs:
   deploy:
     name: Deploy with Docker
     runs-on: ubuntu-latest
-    environment: ${{ github.ref == 'refs/heads/master' && 'Prod' || 'Dev' }}
+    environment: >
+      ${{
+        github.ref == 'refs/heads/master' && 'Prod' ||
+        'Dev'
+      }}
     env:
       AWS_REGION: us-east-1
       AWS_ACCOUNT_ID: ${{ secrets.AWS_ACCOUNT_ID }}
       ECR_REPO: "clockinclick"
       TERRAFORM_DIR: "terraform"
       WORKSPACE: ${{ github.ref == 'refs/heads/master' && 'production' || 'testing' }}
+      SCHOOLS: ${{ vars.SCHOOLS }}
 
     steps:
       # Step 0: Checkout repo
