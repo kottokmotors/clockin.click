@@ -66,11 +66,6 @@ resource "aws_dynamodb_table" "time_attendance" {
     type = "S"
   }
 
-  attribute {
-    name = "ClockedBy"
-    type = "S"
-  }
-
   global_secondary_index {
     name            = "UserIdIndex"
     hash_key        = "UserId"
