@@ -61,7 +61,7 @@ jobs:
 
       - name: Terraform Verify states
         run: |
-          terraform -chdir=${{ TERRAFORM_DIR }} state list
+          terraform -chdir=${{ env.TERRAFORM_DIR }} state list
 
       # Step 7: Terraform apply environment-specific infra (DynamoDB + IAM)
       - name: Terraform Apply Environment Infra
