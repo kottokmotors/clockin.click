@@ -12,17 +12,14 @@ jobs:
     name: Determine Environment
     runs-on: ubuntu-latest
     outputs:
-      workspace: ${{ steps.set-env.outputs.workspace }}
       environment: ${{ steps.set-env.outputs.environment }}
     steps:
       - name: Set environment and schools
         id: set-env
         run: |
           if [[ "${GITHUB_REF##*/}" == "main" ]]; then
-            echo "workspace=production" >> $GITHUB_OUTPUT
             echo "environment=Prod" >> $GITHUB_OUTPUT
           else
-            echo "workspace=testing" >> $GITHUB_OUTPUT
             echo "environment=Prod" >> $GITHUB_OUTPUT
           fi
 
@@ -36,7 +33,6 @@ jobs:
       AWS_ACCOUNT_ID: ${{ secrets.AWS_ACCOUNT_ID }}
       ECR_REPO: "clockinclick"
       TERRAFORM_DIR: "terraform"
-      WORKSPACE: ${{ needs.determine-env.outputs.workspace }}
 
     steps:
       # Step 0: Checkout repo
