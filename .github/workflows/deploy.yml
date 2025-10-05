@@ -46,7 +46,7 @@ jobs:
         run: |
           echo "SCHOOLS: $SCHOOLS"
           echo "SCHOOLS_JSON: $(echo "[\"$(echo $SCHOOLS | sed 's/,/\",\"/g')\"]")"
-          echo "SCHOOLS: '${{ env.SCHOOLS }}
+          echo "SCHOOLS: '${{ env.SCHOOLS }}'"
           echo "Running in environment: $GITHUB_ENVIRONMENT"
 
       # Step 0: Checkout repo
