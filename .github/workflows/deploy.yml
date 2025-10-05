@@ -75,9 +75,12 @@ jobs:
           for school in "${SCHOOLS_ARRAY[@]}"; do
           TARGETS="$TARGETS -target=module.schools${school}.aws_dynamodb_table.users"
           TARGETS="$TARGETS -target=module.schools${school}.aws_dynamodb_table.time_attendance"
-          TARGETS="$TARGETS -target=module.schools${school}.aws_iam_role.apprunner_role"
-          TARGETS="$TARGETS -target=module.schools${school}.aws_iam_policy.apprunner_policy"
-          TARGETS="$TARGETS -target=module.schools${school}.aws_iam_role_policy_attachment.apprunner_role_attach"
+          TARGETS="$TARGETS -target=module.schools${school}.aws_iam_role.apprunner_access_role"
+          TARGETS="$TARGETS -target=module.schools${school}.aws_iam_policy.apprunner_access_policy"
+          TARGETS="$TARGETS -target=module.schools${school}.aws_iam_role_policy_attachment.apprunner_access_role_attach"
+          TARGETS="$TARGETS -target=module.schools${school}.aws_iam_role.apprunner_instance_role"
+          TARGETS="$TARGETS -target=module.schools${school}.aws_iam_policy.apprunner_instance_role_policy"
+          TARGETS="$TARGETS -target=module.schools${school}.aws_iam_role_policy_attachment.apprunner_instance_role_attach"
           done
           
           terraform -chdir=${{ env.TERRAFORM_DIR }} apply \
