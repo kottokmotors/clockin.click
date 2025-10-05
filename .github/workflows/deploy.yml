@@ -8,13 +8,36 @@ permissions:
   contents: read
 
 jobs:
-  deploy:
+  determine-env:
+    name: Determine Environment
     runs-on: ubuntu-latest
+    outputs:
+      workspace: ${{ steps.set-env.outputs.workspace }}
+      environment: ${{ steps.set-env.outputs.environment }}
+    steps:
+      - name: Set environment and schools
+        id: set-env
+        run: |
+          if [[ "${GITHUB_REF##*/}" == "main" ]]; then
+            echo "workspace=production" >> $GITHUB_OUTPUT
+            echo "environment=Prod" >> $GITHUB_OUTPUT
+          else
+            echo "workspace=testing" >> $GITHUB_OUTPUT
+            echo "environment=Prod" >> $GITHUB_OUTPUT
+          fi
+
+  deploy:
+    name: Deploy with Docker
+    environment: ${{ needs.determine-env.outputs.environment }}
+    runs-on: ubuntu-latest
+    needs: determine-env
     env:
       AWS_REGION: us-east-1
       AWS_ACCOUNT_ID: ${{ secrets.AWS_ACCOUNT_ID }}
       ECR_REPO: "clockinclick"
       TERRAFORM_DIR: "terraform"
+      WORKSPACE: ${{ needs.determine-env.outputs.workspace }}
+      SCHOOLS: ${{ env.SCHOOLS }}
 
     steps:
       # Step 0: Checkout repo
@@ -27,17 +50,6 @@ jobs:
         with:
           role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
           aws-region: ${{ env.AWS_REGION }}
-
-      # Step 2: Determine schools and workspace based on branch using secrets
-      - name: Set schools based on branch
-        run: |
-          if [[ "${GITHUB_REF##*/}" == "main" ]]; then
-            echo "SCHOOLS=${{ secrets.PROD_SCHOOLS }}" >> $GITHUB_ENV
-            echo "WORKSPACE=production" >> $GITHUB_ENV
-          else
-            echo "SCHOOLS=${{ secrets.TEST_SCHOOLS }}" >> $GITHUB_ENV
-            echo "WORKSPACE=testing" >> $GITHUB_ENV
-          fi
 
       # Step 3: Setup Terraform
       - name: Setup Terraform
@@ -91,6 +103,17 @@ jobs:
           docker login --username AWS --password-stdin ${{ env.AWS_ACCOUNT_ID }}.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com
 
       # Step 9: Build & push Docker images per school
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v2
+        with:
+          buildkitd-flags: --debug
+          install: true
+          
+      - name: Enable Docker BuildKit
+        run: |
+          export DOCKER_BUILDKIT=1
+          export BUILDKIT_PROGRESS=plain
+
       - name: Build and Push Docker Images (Parallel)
         run: |
           chmod +x scripts/build-school.sh
