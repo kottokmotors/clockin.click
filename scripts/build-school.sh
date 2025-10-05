@@ -9,7 +9,6 @@ set -euo pipefail
 SECRET_NAME="${SECRET_NAME:-clockinclick-app-secrets}"
 ASSETS_BUCKET="${ASSETS_BUCKET:-clockinclick-school-assets}"
 PARALLEL_LIMIT="${PARALLEL_LIMIT:-4}"
-CACHE_IMAGE="${CACHE_IMAGE:-${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/${ECR_REPO}:build-cache}"
 
 # --- Colors ---
 NC='\033[0m'
@@ -31,19 +30,12 @@ echo -e "${CYAN}🪣 Using assets bucket:${NC} $ASSETS_BUCKET"
 echo -e "${CYAN}⚙️  Parallel limit:${NC} $PARALLEL_LIMIT"
 echo ""
 
-# Attempt to pull build cache
-if docker pull "$CACHE_IMAGE" >/dev/null 2>&1; then
-  echo -e "${GREEN}✅ Using cached base image${NC}"
-else
-  echo -e "${YELLOW}ℹ️ No cache image found; cold build${NC}"
-fi
-
 # Shared summary tracking
 SUMMARY_FILE=$(mktemp)
 echo "SCHOOL,STATUS,DURATION" > "$SUMMARY_FILE"
 
-# Temporary file to track failed schools
-FAILED_FILE=$(mktemp)
+# Track failures
+FAILED_SCHOOLS=()
 
 build_school() {
   local school="$1"; local color="$2"
@@ -68,7 +60,6 @@ build_school() {
       --output text > secrets.json; then
     log "$school" "$RED" "❌ Failed to retrieve secrets"
     status="FAILED"
-    echo "$school" >> "$FAILED_FILE"
   else
     jq -r 'to_entries | map("\(.key)=\(.value)") | .[]' secrets.json > .env.production
     rm -f secrets.json
@@ -92,15 +83,20 @@ build_school() {
   # --- Build & push ---
   if docker build \
       --build-arg SCHOOL_NAME="$school" \
-      --cache-from "$CACHE_IMAGE" \
-      --cache-to "type=local,dest=/tmp/docker-cache" \
       -t "$IMAGE_URI" ./; then
-    docker push "$IMAGE_URI"
-    log "$school" "$color" "✅ Build & push complete"
+    if docker push "$IMAGE_URI"; then
+      log "$school" "$color" "✅ Build & push complete"
+    else
+      log "$school" "$RED" "❌ Docker push failed"
+      status="FAILED"
+    fi
   else
     log "$school" "$RED" "❌ Docker build failed"
     status="FAILED"
-    echo "$school" >> "$FAILED_FILE"
+  fi
+
+  if [ "$status" = "FAILED" ]; then
+    FAILED_SCHOOLS+=("$school")
   fi
 
   local duration=$(( $(date +%s) - start_time ))
@@ -112,12 +108,12 @@ build_school() {
 }
 
 export -f build_school log timestamp
-export AWS_ACCOUNT_ID AWS_REGION ECR_REPO SECRET_NAME ASSETS_BUCKET CACHE_IMAGE SUMMARY_FILE FAILED_FILE
+export AWS_ACCOUNT_ID AWS_REGION ECR_REPO SECRET_NAME ASSETS_BUCKET SUMMARY_FILE FAILED_SCHOOLS
 
 COLORS=("\033[1;35m" "\033[1;34m" "\033[1;36m" "\033[1;33m" "\033[1;32m" "\033[1;31m")
 
 # --- Run parallel builds with xargs ---
-echo "$SCHOOLS" | tr ',' '\n' | \
+echo "$SCHOOLS" | tr ' ' '\n' | \
   awk -v colors="${COLORS[*]}" '{
     split(colors, c);
     print $0, c[(NR-1)%length(c)+1];
@@ -141,9 +137,8 @@ if [ -n "${GITHUB_STEP_SUMMARY-}" ]; then
 fi
 
 # --- Exit with failure if any school failed ---
-if [ -s "$FAILED_FILE" ]; then
-  FAILED_SCHOOLS=$(tr '\n' ' ' < "$FAILED_FILE")
-  echo -e "${RED}❌ The following schools failed to build: ${FAILED_SCHOOLS}${NC}"
+if [ "${#FAILED_SCHOOLS[@]}" -gt 0 ]; then
+  echo -e "${RED}❌ The following schools failed to build: ${FAILED_SCHOOLS[*]}${NC}"
   exit 1
 fi
 

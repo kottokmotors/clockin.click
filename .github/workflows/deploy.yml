@@ -91,26 +91,7 @@ jobs:
           aws ecr get-login-password --region ${{ env.AWS_REGION }} | \
           docker login --username AWS --password-stdin ${{ env.AWS_ACCOUNT_ID }}.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com
 
-      - name: Restore Docker build cache
-        uses: actions/cache@v4
-        with:
-          path: /tmp/docker-cache
-          key: docker-build-cache-${{ runner.os }}-${{ hashFiles('**/package-lock.json', '**/Dockerfile') }}
-          restore-keys: |
-            docker-build-cache-${{ runner.os }}-
-
       # Step 9: Build & push Docker images per school
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v2
-        with:
-          buildkitd-flags: --debug
-          install: true
-          
-      - name: Enable Docker BuildKit
-        run: |
-          export DOCKER_BUILDKIT=1
-          export BUILDKIT_PROGRESS=plain
-
       - name: Build and Push Docker Images (Parallel)
         run: |
           chmod +x scripts/build-school.sh
@@ -118,13 +99,6 @@ jobs:
         env:
           PARALLEL_LIMIT: 4
           SCHOOLS: ${{ env.SCHOOLS }}
-
-      - name: Save Docker build cache
-        if: always()
-        uses: actions/cache/save@v4
-        with:
-          path: /tmp/docker-cache
-          key: docker-build-cache-${{ runner.os }}-${{ hashFiles('**/package-lock.json', '**/Dockerfile') }}
 
       # Step 10: Terraform apply App Runner + Route 53
       - name: Terraform Apply App Runner + Route53
