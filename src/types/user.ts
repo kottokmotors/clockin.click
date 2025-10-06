@@ -4,15 +4,15 @@ export interface BaseUser {
     lastName: string;
     roles: string[];
     status?: string;
-    pin?: string;
+    pin: string;
     email?: string;
-    adminLevel?: string;
+    adminLevel?: string | null;
     lastClockTransaction?: string;
 }
 
 // Guardian user (must have learners)
 export interface GuardianUser extends BaseUser {
-    roles: [...string[], "guardian"]; // ensures guardian is included
+    roles: string[]; // ensures guardian is included
     learners: BaseUser[];             // guardians track learners
 }
 

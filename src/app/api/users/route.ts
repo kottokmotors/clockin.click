@@ -40,17 +40,19 @@ export async function POST(req: NextRequest) {
             }
         }
 
+        const isGuardian = body.roles?.includes("guardian");
+
         const newUser: User = {
             userId: body.userId,
             firstName: body.firstName,
             lastName: body.lastName,
-            roles: body.roles,
+            roles: body.roles || [],
             email: body.email,
             pin: body.pin,
             status: body.status,
             lastClockTransaction: body.lastClockTransaction,
-            learners: body.learners,
             adminLevel: body.adminLevel,
+            ...(isGuardian ? { learners: body.learners || [] } : {}),
         };
 
         await putUser(newUser);

@@ -7,7 +7,7 @@ import {
     UpdateItemCommandInput,
     AttributeValue,
     ScanCommand,
-    ScanCommandOutput
+    ScanCommandOutput, DeleteItemCommand
 } from "@aws-sdk/client-dynamodb";
 import { isGuardian, BaseUser, GuardianUser, RegularUser, User } from "@/types/user";
 
@@ -56,7 +56,7 @@ export const unmarshallUser = async (
             roles: guardianRoles,
             status: getString(item.Status),
             email: getString(item.Email),
-            pin: getString(item.Pin),
+            pin: getString(item.Pin) ?? "",
             lastClockTransaction: getString(item.LastClockTransaction),
             learners,
             adminLevel: getString(item.AdminLevel),
@@ -72,7 +72,7 @@ export const unmarshallUser = async (
         roles,
         status: getString(item.Status),
         email: getString(item.Email),
-        pin: getString(item.Pin),
+        pin: getString(item.Pin) ?? "",
         lastClockTransaction: getString(item.LastClockTransaction),
         adminLevel: getString(item.AdminLevel),
     };
@@ -389,3 +389,12 @@ export const updateUser = async (userId: string, updates: Partial<User>): Promis
     // Return the updated user (hydrated)
     return await getUserById(userId);
 };
+
+export const deleteUser = async (userId: string): Promise<void> => {
+    await client.send(
+        new DeleteItemCommand({
+            TableName: USERS_TABLE,
+            Key: { UserId: { S: userId } },
+        })
+    );
+}
