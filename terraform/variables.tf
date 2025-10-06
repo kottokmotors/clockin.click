@@ -16,7 +16,7 @@ variable "project_name" {
 
 variable "schools" {
   type    = list(string)
-  default = ["WildFlower"]
+  default = ["test"]
 }
 
 variable "route53_zone_id" {
