@@ -9,12 +9,20 @@ permissions:
 
 jobs:
   deploy:
+    name: Deploy with Docker
     runs-on: ubuntu-latest
+    environment: >
+      ${{
+        github.ref == 'refs/heads/master' && 'Prod' ||
+        'Dev'
+      }}
     env:
       AWS_REGION: us-east-1
       AWS_ACCOUNT_ID: ${{ secrets.AWS_ACCOUNT_ID }}
       ECR_REPO: "clockinclick"
       TERRAFORM_DIR: "terraform"
+      WORKSPACE: ${{ github.ref == 'refs/heads/master' && 'production' || 'testing' }}
+      SCHOOLS: ${{ vars.SCHOOLS }}
 
     steps:
       # Step 0: Checkout repo
@@ -27,17 +35,6 @@ jobs:
         with:
           role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
           aws-region: ${{ env.AWS_REGION }}
-
-      # Step 2: Determine schools and workspace based on branch using secrets
-      - name: Set schools based on branch
-        run: |
-          if [[ "${GITHUB_REF##*/}" == "main" ]]; then
-            echo "SCHOOLS=${{ secrets.PROD_SCHOOLS }}" >> $GITHUB_ENV
-            echo "WORKSPACE=production" >> $GITHUB_ENV
-          else
-            echo "SCHOOLS=${{ secrets.TEST_SCHOOLS }}" >> $GITHUB_ENV
-            echo "WORKSPACE=testing" >> $GITHUB_ENV
-          fi
 
       # Step 3: Setup Terraform
       - name: Setup Terraform
@@ -65,18 +62,25 @@ jobs:
       # Step 7: Terraform apply environment-specific infra (DynamoDB + IAM)
       - name: Terraform Apply Environment Infra
         run: |
-          # Convert comma-separated secret into a JSON-style list
-          SCHOOLS_JSON=$(echo "[\"$(echo $SCHOOLS | sed 's/,/","/g')\"]")
+          # Convert comma-separated string into a Bash array
+          IFS=',' read -ra SCHOOLS_ARRAY <<< "$SCHOOLS"
+  
+          # Generate JSON-style array for Terraform variable
+          SCHOOLS_JSON=$(printf '%s\n' "${SCHOOLS_ARRAY[@]}" | jq -R . | jq -s .)
+          
           # Initialize an empty string for all targets
           TARGETS=""
       
           # Loop through schools and add the resource addresses dynamically
-          for school in $SCHOOLS_JSON; do
-          TARGETS="$TARGETS -target=module.schools${school}.aws_dynamodb_table.users"
-          TARGETS="$TARGETS -target=module.schools${school}.aws_dynamodb_table.time_attendance"
-          TARGETS="$TARGETS -target=module.schools${school}.aws_iam_role.apprunner_role"
-          TARGETS="$TARGETS -target=module.schools${school}.aws_iam_policy.apprunner_policy"
-          TARGETS="$TARGETS -target=module.schools${school}.aws_iam_role_policy_attachment.apprunner_role_attach"
+          for school in "${SCHOOLS_ARRAY[@]}"; do
+          TARGETS="$TARGETS -target=module.schools[\"${school}\"].aws_dynamodb_table.users"
+          TARGETS="$TARGETS -target=module.schools[\"${school}\"].aws_dynamodb_table.time_attendance"
+          TARGETS="$TARGETS -target=module.schools[\"${school}\"].aws_iam_role.apprunner_access_role"
+          TARGETS="$TARGETS -target=module.schools[\"${school}\"].aws_iam_policy.apprunner_access_role_policy"
+          TARGETS="$TARGETS -target=module.schools[\"${school}\"].aws_iam_role_policy_attachment.apprunner_access_role_attach"
+          TARGETS="$TARGETS -target=module.schools[\"${school}\"].aws_iam_role.apprunner_instance_role"
+          TARGETS="$TARGETS -target=module.schools[\"${school}\"].aws_iam_policy.apprunner_instance_role_policy"
+          TARGETS="$TARGETS -target=module.schools[\"${school}\"].aws_iam_role_policy_attachment.apprunner_instance_role_attach"
           done
           
           terraform -chdir=${{ env.TERRAFORM_DIR }} apply \
@@ -91,30 +95,31 @@ jobs:
           docker login --username AWS --password-stdin ${{ env.AWS_ACCOUNT_ID }}.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com
 
       # Step 9: Build & push Docker images per school
-      - name: Build and Push Docker Images
+      - name: Build and Push Docker Images (Parallel)
         run: |
-          for school in $SCHOOLS; do
-            SCHOOL_LOWER=$(echo $school | tr '[:upper:]' '[:lower:]' | tr ' ' '-')
-            IMAGE_URI="${{ env.AWS_ACCOUNT_ID }}.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com/${ECR_REPO}:${SCHOOL_LOWER}-latest"
-            echo "Building and pushing Docker image for $school -> $IMAGE_URI"
-            docker build -t ${SCHOOL_LOWER}-app ./  # adjust context if needed
-            docker tag ${SCHOOL_LOWER}-app $IMAGE_URI
-            docker push $IMAGE_URI
-          done
+          chmod +x scripts/build-school.sh
+          ./scripts/build-school.sh
+        env:
+          PARALLEL_LIMIT: 4
+          SCHOOLS: ${{ env.SCHOOLS }}
 
       # Step 10: Terraform apply App Runner + Route 53
       - name: Terraform Apply App Runner + Route53
         run: |
-          # Convert comma-separated secret into a JSON-style list
-          SCHOOLS_JSON=$(echo "[\"$(echo $SCHOOLS | sed 's/,/","/g')\"]")
+          # Convert comma-separated string into a Bash array
+          IFS=',' read -ra SCHOOLS_ARRAY <<< "$SCHOOLS"
+          
+          # Generate JSON-style array for Terraform variable
+          SCHOOLS_JSON=$(printf '%s\n' "${SCHOOLS_ARRAY[@]}" | jq -R . | jq -s .)
+          
           # Initialize an empty string for all targets
           TARGETS=""
           
           # Loop through schools and add the resource addresses dynamically
-          for school in $SCHOOLS_JSON; do
-          TARGETS="$TARGETS -target=module.schools${school}.aws_apprunner_service.service"
-          TARGETS="$TARGETS -target=module.schools${school}.aws_apprunner_custom_domain_association.domain"
-          TARGETS="$TARGETS -target=module.schools${school}.aws_route53_record.school_subdomain"
+          for school in "${SCHOOLS_ARRAY[@]}"; do
+          TARGETS="$TARGETS -target=module.schools[\"${school}\"].aws_apprunner_service.service"
+          TARGETS="$TARGETS -target=module.schools[\"${school}\"].aws_apprunner_custom_domain_association.domain"
+          TARGETS="$TARGETS -target=module.schools[\"${school}\"].aws_route53_record.school_subdomain"
           done
           
           terraform -chdir=${{ env.TERRAFORM_DIR }} apply \
@@ -125,14 +130,18 @@ jobs:
       # Step 11: Terraform apply cert validation
       - name: Terraform Apply Certificate Validation
         run: |
-          # Convert comma-separated secret into a JSON-style list
-          SCHOOLS_JSON=$(echo "[\"$(echo $SCHOOLS | sed 's/,/","/g')\"]")
+          # Convert comma-separated string into a Bash array
+          IFS=',' read -ra SCHOOLS_ARRAY <<< "$SCHOOLS"
+          
+          # Generate JSON-style array for Terraform variable
+          SCHOOLS_JSON=$(printf '%s\n' "${SCHOOLS_ARRAY[@]}" | jq -R . | jq -s .)
+          
           # Initialize an empty string for all targets
           TARGETS=""
           
           # Loop through schools and add the resource addresses dynamically
-          for school in $SCHOOLS_JSON; do
-          TARGETS="$TARGETS -target=module.schools${school}.aws_route53_record.validation"
+          for school in "${SCHOOLS_ARRAY[@]}"; do
+          TARGETS="$TARGETS -target=module.schools[\"${school}\"].aws_route53_record.validation"
           done
           
           terraform -chdir=${{ env.TERRAFORM_DIR }} apply \

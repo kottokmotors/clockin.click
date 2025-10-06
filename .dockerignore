@@ -1,0 +1,70 @@
+# -----------------------------
+# 🧱 Core build exclusions
+# -----------------------------
+node_modules
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+.DS_Store
+*.swp
+
+# -----------------------------
+# 🧠 Next.js build artifacts
+# -----------------------------
+.next/
+out/
+.vercel/
+dist/
+.cache/
+
+# -----------------------------
+# 🧰 Git & local tooling
+# -----------------------------
+.git
+.gitignore
+.github/
+.vscode/
+.idea/
+*.iml
+
+# -----------------------------
+# 🧾 Environment & config files
+# -----------------------------
+# Don’t send raw secrets or dev envs to Docker
+.env
+.env.local
+.env.development
+.env.test
+.env.production.local
+
+# ✅ Allow only the CI-generated .env.production
+!*.env.production
+
+# -----------------------------
+# 🖼️ Build context size reduction
+# -----------------------------
+# Ignore uploads, screenshots, or local media not needed at build time
+uploads/
+screenshots/
+project_resources/
+tmp/
+logs/
+coverage/
+__pycache__/
+*.log
+
+# -----------------------------
+# 🧪 Miscellaneous
+# -----------------------------
+*.tsbuildinfo
+*.map
+*.lock
+*.bak
+*.orig
+
+# -----------------------------
+# Terraform
+# -----------------------------
+.terraform/
+terraform/

@@ -1,7 +1,8 @@
-import NextAuth from "next-auth";
+import NextAuth, {AuthOptions} from "next-auth";
 import GoogleProvider from "next-auth/providers/google";
+import {isAdmin} from "@/utils/dynamo";
 
-const handler = NextAuth({
+export const authOptions: AuthOptions = {
     providers: [
         GoogleProvider({
             clientId: process.env.GOOGLE_CLIENT_ID!,
@@ -10,20 +11,32 @@ const handler = NextAuth({
     ],
     callbacks: {
         async signIn({ user }) {
-            // You can add DynamoDB user provisioning here later
-            return true;
-        },
-        async jwt({ token, account, profile }) {
-            if (account && profile) {
-                token.role = "Staff"; // default role, override later
+            if (!user?.email) {
+                console.warn("Sign in failed: no email provided");
+                return false; // reject login
             }
-            return token;
+
+            const email = user.email;
+            const authorized = await isAdmin(email);
+
+            if (!authorized) {
+                console.warn(`Unauthorized login attempt: ${email}`);
+            }
+
+            return authorized; // only allow login if admin
         },
-        async session({ session, token }) {
-            session.user.role = token.role as string | undefined;
+        async session({ session }) {
+            // optional: add isAdmin flag to session
+            session.user.isAdmin = true;
             return session;
         },
     },
-});
+    pages: {
+        signIn: "/auth/signin",
+        error: "/auth/unauthorized", // redirect non-admins here
+    },
+}
+
+const handler = NextAuth(authOptions);
 
 export { handler as GET, handler as POST };

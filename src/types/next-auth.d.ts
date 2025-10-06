@@ -1,17 +1,10 @@
-import NextAuth, { DefaultSession, DefaultJWT } from "next-auth";
+import { DefaultSession } from "next-auth";
 
 declare module "next-auth" {
     interface Session {
         user: {
-            role?: string;
+            /** Add custom field */
+            isAdmin?: boolean;
         } & DefaultSession["user"];
-    }
-
-    interface User {
-        role?: string;
-    }
-
-    interface JWT extends DefaultJWT {
-        role?: string;
     }
 }
