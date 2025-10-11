@@ -46,7 +46,6 @@ jobs:
 
       # Step 5: Create or ensure global ECR (only once, main branch)
       - name: Terraform Apply Global ECR
-        if: github.ref == 'refs/heads/main'
         run: |
           terraform -chdir=${{ env.TERRAFORM_DIR }} apply \
             -auto-approve \
