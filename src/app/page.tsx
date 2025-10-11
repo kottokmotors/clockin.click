@@ -164,7 +164,7 @@ export default function PinEntry() {
                                         className="flex justify-between items-center border text-2xl p-2 rounded"
                                     >
                     <span>
-                      {learner.firstName} {learner.lastName} {learner.status ? <StatusBadge status={user.status}/> : ""}
+                      {learner.firstName} {learner.lastName} {learner.status ? <StatusBadge status={learner.status}/> : ""}
                     </span>
                                         <div className="flex gap-8">
                                             <ClockButton

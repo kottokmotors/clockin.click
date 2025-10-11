@@ -197,6 +197,7 @@ export default function AdminUserTable({ users }: Props) {
             if (!res.ok) throw new Error("Failed to save user");
 
             const data = await res.json();
+            console.log(data)
 
             if (data.success && data.user) {
                 setAllUsers((prev) =>
