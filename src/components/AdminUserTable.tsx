@@ -42,6 +42,9 @@ export default function AdminUserTable({ users }: Props) {
     const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
     const [userToDelete, setUserToDelete] = useState<User | null>(null);
     const [isSaving, setIsSaving] = useState(false);
+    const [sortConfig, setSortConfig] = useState<{ key: string; direction: "asc" | "desc" }>({key: "name", direction: "asc"});
+    const [searchQuery, setSearchQuery] = useState("");
+
 
     // --- Populate state when user changes ---
     useEffect(() => {
@@ -66,14 +69,82 @@ export default function AdminUserTable({ users }: Props) {
         setRoleFilter(roles);
     }, [users]);
 
+    useEffect(() => {
+        if (sortConfig) {
+            setAllUsers((prev) => sortUsers(prev, sortConfig));
+        }
+    }, [users]); // Re-run when new users prop comes in
+
+
+    const handleSort = (key: string) => {
+        setSortConfig((prev) => {
+            if (prev && prev.key === key) {
+                // Toggle direction if same key is clicked
+                return { key, direction: prev.direction === "asc" ? "desc" : "asc" };
+            }
+            // Default to ascending
+            return { key, direction: "asc" };
+        });
+    };
+
+    const sortUsers = (users: User[], config: typeof sortConfig): User[] => {
+        if (!config) return users;
+
+        const sorted = [...users].sort((a, b) => {
+            let aValue: string | number = "";
+            let bValue: string | number = "";
+
+            switch (config.key) {
+                case "name":
+                    aValue = `${a.lastName ?? ""} ${a.firstName ?? ""}`.toLowerCase();
+                    bValue = `${b.lastName ?? ""} ${b.firstName ?? ""}`.toLowerCase();
+                    break;
+                case "email":
+                    aValue = (a.email ?? "").toLowerCase();
+                    bValue = (b.email ?? "").toLowerCase();
+                    break;
+                case "pin":
+                    aValue = a.pin ?? "";
+                    bValue = b.pin ?? "";
+                    break;
+                default:
+                    return 0;
+            }
+
+            if (aValue < bValue) return config.direction === "asc" ? -1 : 1;
+            if (aValue > bValue) return config.direction === "asc" ? 1 : -1;
+            return 0;
+        });
+
+        return sorted;
+    };
+
+
     // Filter users based on selected roles
     const filteredUsers = useMemo(() => {
         const activeRoles = Object.entries(roleFilter)
             .filter(([_, checked]) => checked)
             .map(([role]) => role);
 
-        return allUsers.filter((u) => u.roles.some((r) => activeRoles.includes(r)));
-    }, [allUsers, roleFilter]);
+        let result = allUsers.filter((u) => u.roles.some((r) => activeRoles.includes(r)));
+
+        if (searchQuery.trim() !== "") {
+            const query = searchQuery.toLowerCase();
+            result = result.filter((u) =>
+                `${u.firstName} ${u.lastName}`.toLowerCase().includes(query) ||
+                (u.email?.toLowerCase() ?? "").includes(query) ||
+                (u.pin ?? "").includes(query) ||
+                u.roles.some((r) => r.toLowerCase().includes(query))
+            );
+        }
+
+        result = sortUsers(result, sortConfig);
+
+        return result;
+    }, [allUsers, roleFilter, sortConfig, searchQuery]);
+
+
+
 
     const showToast = (type: Toast["type"], message: string) => {
         const id = Date.now();
@@ -285,22 +356,64 @@ export default function AdminUserTable({ users }: Props) {
                 ))}
             </div>
 
-            <button
-                onClick={() => {
-                    handleAddUser();
-                }}
-                className="px-4 py-2 rounded-lg bg-green-600 text-white hover:bg-green-700 mb-4"
-            >
-                Add New User
-            </button>
+            <div className="flex items-center justify-between mb-4">
+                <button
+                    onClick={handleAddUser}
+                    className="px-4 py-2 rounded-lg bg-green-600 text-white hover:bg-green-700"
+                >
+                    Add New User
+                </button>
+
+                <div className="relative w-64">
+                    <input
+                        type="text"
+                        placeholder="Search users..."
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)}
+                        className="border border-gray-300 rounded-lg px-3 py-2 pr-9 w-full focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition"
+                    />
+
+                    {searchQuery && (
+                        <button
+                            type="button"
+                            onClick={() => setSearchQuery("")}
+                            className="absolute inset-y-0 right-2 flex items-center justify-center w-5 h-5 my-auto rounded-full text-gray-500 hover:text-gray-700 hover:bg-gray-200 transition"
+                        >
+                            ×
+                        </button>
+                    )}
+                </div>
+
+            </div>
+
 
             {/* User Table */}
             <div className="overflow-hidden rounded-2xl shadow-md bg-white border border-gray-200">
                 <table className="min-w-full border-collapse">
                     <thead className="bg-gray-100 text-gray-700 uppercase text-sm tracking-wide">
                     <tr>
-                        <th className="px-6 py-3 text-left font-semibold">Full Name</th>
-                        <th className="px-6 py-3 text-left font-semibold">Email</th>
+                        <th
+                            onClick={() => handleSort("name")}
+                            className={`px-6 py-3 text-left font-semibold cursor-pointer select-none ${
+                                sortConfig?.key === "name" ? "text-blue-600" : ""
+                            }`}
+                        >
+                            Full Name
+                            {sortConfig?.key === "name" && (
+                                <span className="ml-1">{sortConfig.direction === "asc" ? "▲" : "▼"}</span>
+                            )}
+                        </th>
+                        <th
+                            onClick={() => handleSort("email")}
+                            className={`px-6 py-3 text-left font-semibold cursor-pointer select-none ${
+                                sortConfig?.key === "email" ? "text-blue-600" : ""
+                            }`}
+                        >
+                            Email
+                            {sortConfig?.key === "email" && (
+                                <span className="ml-1">{sortConfig.direction === "asc" ? "▲" : "▼"}</span>
+                            )}
+                        </th>
                         <th className="px-6 py-3 text-left font-semibold relative">
                             Roles
                             <button
