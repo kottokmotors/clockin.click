@@ -11,3 +11,7 @@ output "school_service_urls" {
   value = { for s, m in module.schools : s => m.apprunner_url }
 }
 
+module "ECR" {
+  source = "./modules/ecr"
+  project_name = var.project_name
+}

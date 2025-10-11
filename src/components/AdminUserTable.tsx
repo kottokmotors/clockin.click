@@ -12,6 +12,7 @@ import Dropdown from "@/components/Dropdown";
 import Select, {MultiValue} from "react-select";
 import {Transition} from "@headlessui/react"
 import { FaEdit, FaTrash } from "react-icons/fa";
+import {Spinner} from "@/components/Spinner";
 
 interface Props {
     users: User[];
@@ -40,6 +41,7 @@ export default function AdminUserTable({ users }: Props) {
     const [isNewUser, setIsNewUser] = useState(false);
     const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
     const [userToDelete, setUserToDelete] = useState<User | null>(null);
+    const [isSaving, setIsSaving] = useState(false);
 
     // --- Populate state when user changes ---
     useEffect(() => {
@@ -158,6 +160,7 @@ export default function AdminUserTable({ users }: Props) {
     const handleSaveUser = async (e: React.FormEvent<HTMLFormElement>) => {
         e.preventDefault();
         if (!selectedUser) return;
+        setIsSaving(true);
 
         // Determine if user is a guardian
         const isGuardian = selectedRoles.includes("guardian");
@@ -197,6 +200,7 @@ export default function AdminUserTable({ users }: Props) {
             if (!res.ok) throw new Error("Failed to save user");
 
             const data = await res.json();
+            console.log(data)
 
             if (data.success && data.user) {
                 setAllUsers((prev) =>
@@ -215,6 +219,7 @@ export default function AdminUserTable({ users }: Props) {
             console.error("Error saving user:", err);
             showToast("error", "Error saving user. Please try again.");
         }
+        setIsSaving(false);
     };
 
     const handleAddUser = () => {
@@ -571,7 +576,7 @@ export default function AdminUserTable({ users }: Props) {
                                         ${isFormValid ? "bg-blue-600 hover:bg-blue-700" : "bg-gray-400 cursor-not-allowed"}
                                       `}
                                 >
-                                    {isNewUser ? "Add User" : "Save Changes"}
+                                    {isSaving ? <Spinner/> : (isNewUser ? "Add User" : "Save Changes")}
                                 </button>
                             </div>
                         </form>

@@ -42,8 +42,7 @@ export const ClockButton: React.FC<ClockButtonProps> = ({
             className={`${baseClasses} ${bgClass}`}
             disabled={isDisabled}
         >
-            {isLoading && <Spinner />}
-            {isLoading ? "Processing..." : label || status}
+            {isLoading ? <Spinner /> : label || status}
         </button>
     );
 };
