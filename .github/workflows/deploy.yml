@@ -50,7 +50,7 @@ jobs:
         run: |
           terraform -chdir=${{ env.TERRAFORM_DIR }} apply \
             -auto-approve \
-            -target=aws_ecr_repository.${ECR_REPO}
+            -target=module.ecr
 
       # Step 6: Login to ECR
       - name: Login to ECR
@@ -84,4 +84,4 @@ jobs:
           # Generate JSON-style array for Terraform variable
           SCHOOLS_JSON=$(printf '%s\n' "${SCHOOLS_ARRAY[@]}" | jq -R . | jq -s .)
           
-          terraform -chdir=${{ env.TERRAFORM_DIR }} apply -auto-approve -var="schools=${SCHOOLS_JSON}"
+          terraform -chdir=${{ env.TERRAFORM_DIR }} apply -auto-approve -var="schools=${SCHOOLS_JSON}" -target=module.schools
