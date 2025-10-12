@@ -79,6 +79,12 @@ resource "aws_dynamodb_table" "time_attendance" {
     projection_type = "ALL"
   }
 
+  global_secondary_index {
+    name               = "DateTimeStamp-index"
+    hash_key           = "DateTimeStamp"
+    projection_type    = "ALL"
+  }
+
   tags = {
     client = var.school_id
     application = var.project_name
