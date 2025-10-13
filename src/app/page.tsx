@@ -1,8 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { User } from "@/types/user"; // Use the centralized User type
-import { ClockButton } from '@/components/ClockButton'
+import { User } from "@/types/user";
 import StatusBadge from "@/components/StatusBadge";
 
 export default function PinEntry() {
@@ -11,9 +10,12 @@ export default function PinEntry() {
     const [error, setError] = useState("");
     const [loading, setLoading] = useState(false);
     const [loadingAction, setLoadingAction] = useState<string | null>(null);
+    const [selectedActions, setSelectedActions] = useState<
+        { userId: string; status: "In" | "Out"; type: string; actorId: string }[]
+    >([]);
 
     const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        const value = e.target.value.replace(/\D/g, ""); // only numbers
+        const value = e.target.value.replace(/\D/g, "");
         if (value.length <= 4) setPin(value);
         setError("");
     };
@@ -48,35 +50,77 @@ export default function PinEntry() {
         setPin("");
         setUser(null);
         setError("");
+        setSelectedActions([]);
     };
 
-    const handleClock = async (userId: string, newStatus: string, userType: string, clockedById: string) => {
-        setLoading(true);
-        const key = `${userId}-${newStatus}`;
-        try {
-            setLoadingAction(key);
-            const res = await fetch(`/api/users/${userId}/status`, {
-                method: "PATCH",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ status: newStatus, userType: userType, clockedById: clockedById}),
-            });
-            if (!res.ok) throw new Error("Failed to update status");
+    const toggleAction = (
+        userId: string,
+        status: "In" | "Out",
+        type: string,
+        actorId: string
+    ) => {
+        setSelectedActions((prev) => {
+            const existing = prev.find((a) => a.userId === userId);
+            if (existing?.status === status) {
+                // deselect if same
+                return prev.filter((a) => a.userId !== userId);
+            }
+            // replace if exists, otherwise add
+            const others = prev.filter((a) => a.userId !== userId);
+            return [...others, { userId, status, type, actorId }];
+        });
+    };
 
-            // Refresh user state
-            const refreshedUser: User = await fetch(`/api/users/${user?.userId}`).then((r) => r.json());
-            setUser(refreshedUser);
+    const handleClockSubmit = async () => {
+        if (selectedActions.length === 0) {
+            setError("Please select at least one Clock In/Out action first.");
+            return;
+        }
+
+        setLoading(true);
+        setLoadingAction("batch");
+        setError("");
+
+        try {
+            // Perform all updates in parallel
+            await Promise.all(
+                selectedActions.map(async (action) => {
+                    const { userId, status, type, actorId } = action;
+                    const res = await fetch(`/api/users/${userId}/status`, {
+                        method: "PATCH",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({
+                            status,
+                            userType: type,
+                            clockedById: actorId,
+                        }),
+                    });
+                    if (!res.ok) throw new Error(`Failed to update ${userId}`);
+                })
+            );
+
+            // Refresh after all updates
+            if (user) {
+                const refreshedUser: User = await fetch(`/api/users/${user.userId}`).then((r) =>
+                    r.json()
+                );
+                setUser(refreshedUser);
+            }
+
+            setSelectedActions([]);
         } catch (err) {
             console.error(err);
-            setError("Failed to update status");
+            setError("One or more updates failed.");
         } finally {
             setLoading(false);
-            setLoadingAction(null)
+            setLoadingAction(null);
+            clearPin();
+            setUser(null);
         }
     };
 
     const canClockSelf =
-        user &&
-        user.roles.some((r) => ["staff", "volunteer"].includes(r.toLowerCase()));
+        user && user.roles.some((r) => ["staff", "volunteer"].includes(r.toLowerCase()));
 
     const isGuardian = user?.roles.includes("guardian");
     const userType = user?.roles.includes("staff")
@@ -84,6 +128,9 @@ export default function PinEntry() {
         : user?.roles.includes("volunteer")
             ? "volunteer"
             : "learner";
+
+    const isSelected = (userId: string, status: "In" | "Out") =>
+        selectedActions.some((a) => a.userId === userId && a.status === status);
 
     return (
         <div className="flex flex-col items-center min-h-screen p-4 pt-20 bg-gray-100">
@@ -100,9 +147,7 @@ export default function PinEntry() {
                         autoFocus
                         className="w-60 text-center text-5xl border rounded-md p-2 shadow focus:outline-none focus:ring-2 focus:ring-blue-500"
                     />
-
                     {error && <p className="text-red-500">{error}</p>}
-
                     <div className="flex space-x-2">
                         <button
                             type="button"
@@ -126,35 +171,44 @@ export default function PinEntry() {
                         Welcome, {user.firstName} {user.lastName}!
                     </h2>
                     <p>Roles: {user.roles.join(", ")}</p>
-                    {user.status && <p>Status: <StatusBadge status={user.status}/></p>}
-
-                    {canClockSelf && (
-                        <div className="flex gap-4">
-                            <ClockButton
-                                userId={user.userId}
-                                status="In"
-                                type={userType}       // "staff" or "volunteer"
-                                actorId={user?.userId}
-                                currentStatus={user.status}
-                                loadingAction={loadingAction}
-                                handleClock={handleClock}
-                            />
-
-                            <ClockButton
-                                userId={user.userId}
-                                status="Out"
-                                type={userType}
-                                actorId={user?.userId}
-                                currentStatus={user.status}
-                                loadingAction={loadingAction}
-                                handleClock={handleClock}
-                            />
-
-                        </div>
-
+                    {user.status && (
+                        <p className="text-gray-500 text-sm">
+                            Current status: <StatusBadge status={user.status} />
+                        </p>
                     )}
 
-                    {isGuardian && (user.learners?.length ?? 0) > 0 ? (
+                    {/* SELF CLOCKING */}
+                    {canClockSelf && (
+                        <div className="flex gap-4">
+                            <button
+                                onClick={() =>
+                                    toggleAction(user.userId, "In", userType, user.userId)
+                                }
+                                className={`px-6 py-3 text-xl font-semibold rounded ${
+                                    isSelected(user.userId, "In")
+                                        ? "bg-green-600 text-white"
+                                        : "bg-gray-200 hover:bg-gray-300"
+                                }`}
+                            >
+                                Clock In
+                            </button>
+                            <button
+                                onClick={() =>
+                                    toggleAction(user.userId, "Out", userType, user.userId)
+                                }
+                                className={`px-6 py-3 text-xl font-semibold rounded ${
+                                    isSelected(user.userId, "Out")
+                                        ? "bg-red-600 text-white"
+                                        : "bg-gray-200 hover:bg-gray-300"
+                                }`}
+                            >
+                                Clock Out
+                            </button>
+                        </div>
+                    )}
+
+                    {/* LEARNER CLOCKING */}
+                    {isGuardian && (user.learners?.length ?? 0) > 0 && (
                         <div className="mt-4 w-full">
                             <h3 className="font-semibold mb-2">Your Learners</h3>
                             <ul className="space-y-2">
@@ -164,43 +218,62 @@ export default function PinEntry() {
                                         className="flex justify-between items-center border text-2xl p-2 rounded"
                                     >
                     <span>
-                      {learner.firstName} {learner.lastName} {learner.status ? <StatusBadge status={learner.status}/> : ""}
+                      {learner.firstName} {learner.lastName}{" "}
+                        {learner.status ? (
+                            <p className="text-gray-500 text-sm">
+                                Current status: <StatusBadge status={learner.status} />
+                            </p>
+                        ) : (
+                            ""
+                        )}
                     </span>
-                                        <div className="flex gap-8">
-                                            <ClockButton
-                                                userId={learner.userId}
-                                                status="In"
-                                                type="learner"
-                                                actorId={user?.userId}
-                                                currentStatus={learner.status}
-                                                loadingAction={loadingAction}
-                                                handleClock={handleClock}
-                                            />
-
-                                            <ClockButton
-                                                userId={learner.userId}
-                                                status="Out"
-                                                type="learner"
-                                                actorId={user?.userId}
-                                                currentStatus={learner.status}
-                                                loadingAction={loadingAction}
-                                                handleClock={handleClock}
-                                            />
-
+                                        <div className="flex gap-4">
+                                            <button
+                                                onClick={() =>
+                                                    toggleAction(learner.userId, "In", "learner", user.userId)
+                                                }
+                                                className={`px-4 py-2 rounded ${
+                                                    isSelected(learner.userId, "In")
+                                                        ? "bg-green-600 text-white"
+                                                        : "bg-gray-200 hover:bg-gray-300"
+                                                }`}
+                                            >
+                                                In
+                                            </button>
+                                            <button
+                                                onClick={() =>
+                                                    toggleAction(learner.userId, "Out", "learner", user.userId)
+                                                }
+                                                className={`px-4 py-2 rounded ${
+                                                    isSelected(learner.userId, "Out")
+                                                        ? "bg-red-600 text-white"
+                                                        : "bg-gray-200 hover:bg-gray-300"
+                                                }`}
+                                            >
+                                                Out
+                                            </button>
                                         </div>
-
                                     </li>
                                 ))}
                             </ul>
                         </div>
-                    ) : null}
+                    )}
+
+                    {/* SUBMIT ALL */}
+                    <button
+                        onClick={handleClockSubmit}
+                        disabled={loading || selectedActions.length === 0}
+                        className="mt-4 px-6 py-3 bg-blue-500 text-white rounded hover:bg-blue-600 disabled:bg-gray-300"
+                    >
+                        {loading ? "Processing..." : "Submit All"}
+                    </button>
 
                     <button
                         type="button"
                         onClick={clearPin}
-                        className="mt-4 px-4 py-2 bg-gray-300 rounded hover:bg-gray-400 text-black cursor-pointer"
+                        className="mt-2 px-4 py-2 bg-gray-300 rounded hover:bg-gray-400 text-black cursor-pointer"
                     >
-                        Submit
+                        Back
                     </button>
                 </div>
             )}
