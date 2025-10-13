@@ -1,16 +1,13 @@
 'use client';
 
-import { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
     format,
     parseISO,
     differenceInMinutes,
     startOfWeek,
     endOfWeek,
-    addDays,
-    isSameDay,
 } from 'date-fns';
-import { Calendar } from '@/components/ui/calendar';
 import {
     Card,
     CardContent,
@@ -27,31 +24,23 @@ import {
     SelectValue,
 } from '@/components/ui/select';
 import {
-    CalendarIcon,
     Download,
     Search,
     BarChart3,
     Table,
 } from 'lucide-react';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
-
-type AttendanceRecord = {
-    UserId: string;
-    State: string;
-    ClockedBy: string;
-    DateTimeStamp: string;
-    UserTypeYearMonth: string;
-};
+import DatePicker from "@/components/DatePicker";
+import { TimeAttendanceRecord } from '@/types/attendance'
 
 export default function AttendanceReportPage() {
     const [selectedDate, setSelectedDate] = useState<Date>(new Date());
-    const [records, setRecords] = useState<AttendanceRecord[]>([]);
+    const [records, setRecords] = useState<TimeAttendanceRecord[]>([]);
     const [loading, setLoading] = useState(false);
-    const [showCalendar, setShowCalendar] = useState(false);
     const [activeTab, setActiveTab] = useState<'daily' | 'weekly'>('daily');
 
     const [userFilter, setUserFilter] = useState('');
-    const [userTypeFilter, setUserTypeFilter] = useState('all');
+    const [userTypeFilter, setUserTypeFilter] = useState('staff');
 
     // Fetch records (you can optimize by caching later)
     useEffect(() => {
@@ -59,7 +48,7 @@ export default function AttendanceReportPage() {
             setLoading(true);
             try {
                 const formattedDate = format(selectedDate, 'yyyy-MM-dd');
-                const res = await fetch(`/api/reports/attendance?date=${formattedDate}`);
+                const res = await fetch(`/api/reports/attendance?date=${formattedDate}&userType=${userTypeFilter}`);
                 const data = await res.json();
                 setRecords(data);
             } catch (err) {
@@ -70,50 +59,46 @@ export default function AttendanceReportPage() {
         };
 
         fetchRecords();
-    }, [selectedDate]);
+    }, [selectedDate, userTypeFilter]);
 
-    // Filter and sort
+// ---------------- Filter and Sort ----------------
     const filteredRecords = useMemo(() => {
         let result = [...records];
-
         if (userFilter.trim()) {
             const query = userFilter.toLowerCase();
-            result = result.filter(
-                (r) =>
-                    r.UserId.toLowerCase().includes(query) ||
-                    r.ClockedBy.toLowerCase().includes(query)
-            );
+            result = result.filter((r) => {
+                const userName = r.user
+                    ? `${r.user.FirstName} ${r.user.LastName}`.toLowerCase()
+                    : '';
+                const clockedByName = r.clockedBy
+                    ? `${r.clockedBy.firstName} ${r.clockedBy.lastName}`.toLowerCase()
+                    : '';
+                return userName.includes(query) || clockedByName.includes(query);
+            });
         }
 
-        if (userTypeFilter !== 'all') {
-            result = result.filter((r) =>
-                r.UserTypeYearMonth.startsWith(userTypeFilter)
-            );
-        }
-
+        console.log(result)
         return result.sort(
             (a, b) =>
-                new Date(a.DateTimeStamp).getTime() -
-                new Date(b.DateTimeStamp).getTime()
+                new Date(a.dateTimeStamp).getTime() - new Date(b.dateTimeStamp).getTime()
         );
     }, [records, userFilter, userTypeFilter]);
 
-    // Compute daily aggregates
+// ---------------- Daily Aggregates ----------------
     const dailyAgg = useMemo(() => {
         const totalTransactions = filteredRecords.length;
         const userSessions: Record<string, number> = {};
 
         const byUser: Record<string, AttendanceRecord[]> = {};
         filteredRecords.forEach((r) => {
-            if (!byUser[r.UserId]) byUser[r.UserId] = [];
-            byUser[r.UserId].push(r);
+            const userId = r.User?.UserId ?? '(unknown)';
+            if (!byUser[userId]) byUser[userId] = [];
+            byUser[userId].push(r);
         });
 
-        Object.keys(byUser).forEach((u) => {
-            const entries = byUser[u].sort(
-                (a, b) =>
-                    new Date(a.DateTimeStamp).getTime() -
-                    new Date(b.DateTimeStamp).getTime()
+        Object.keys(byUser).forEach((userId) => {
+            const entries = byUser[userId].sort(
+                (a, b) => new Date(a.DateTimeStamp).getTime() - new Date(b.DateTimeStamp).getTime()
             );
             for (let i = 0; i < entries.length - 1; i += 2) {
                 if (entries[i].State === 'IN' && entries[i + 1].State === 'OUT') {
@@ -121,7 +106,7 @@ export default function AttendanceReportPage() {
                         parseISO(entries[i + 1].DateTimeStamp),
                         parseISO(entries[i].DateTimeStamp)
                     );
-                    userSessions[u] = (userSessions[u] || 0) + diff;
+                    userSessions[userId] = (userSessions[userId] || 0) + diff;
                 }
             }
         });
@@ -131,11 +116,10 @@ export default function AttendanceReportPage() {
         return { totalTransactions, totalHours };
     }, [filteredRecords]);
 
-    // Compute weekly summary (aggregate by user)
+// ---------------- Weekly Summary ----------------
     const weeklySummary = useMemo(() => {
         const start = startOfWeek(selectedDate, { weekStartsOn: 0 });
         const end = endOfWeek(selectedDate, { weekStartsOn: 0 });
-        const days: Date[] = Array.from({ length: 7 }, (_, i) => addDays(start, i));
 
         const userTotals: Record<string, number> = {};
         const allRecords = records.filter((r) => {
@@ -145,15 +129,14 @@ export default function AttendanceReportPage() {
 
         const byUser: Record<string, AttendanceRecord[]> = {};
         allRecords.forEach((r) => {
-            if (!byUser[r.UserId]) byUser[r.UserId] = [];
-            byUser[r.UserId].push(r);
+            const userId = r.User?.UserId ?? '(unknown)';
+            if (!byUser[userId]) byUser[userId] = [];
+            byUser[userId].push(r);
         });
 
         Object.keys(byUser).forEach((userId) => {
             const entries = byUser[userId].sort(
-                (a, b) =>
-                    new Date(a.DateTimeStamp).getTime() -
-                    new Date(b.DateTimeStamp).getTime()
+                (a, b) => new Date(a.DateTimeStamp).getTime() - new Date(b.DateTimeStamp).getTime()
             );
             for (let i = 0; i < entries.length - 1; i += 2) {
                 if (entries[i].State === 'IN' && entries[i + 1].State === 'OUT') {
@@ -172,15 +155,16 @@ export default function AttendanceReportPage() {
         }));
     }, [records, selectedDate]);
 
+// ---------------- CSV Export ----------------
     const exportCSV = () => {
         const csv = [
-            ['UserId', 'State', 'ClockedBy', 'DateTimeStamp', 'UserTypeYearMonth'],
+            ['User', 'State', 'Clocked By', 'DateTimeStamp', 'User Type'],
             ...filteredRecords.map((r) => [
-                r.UserId,
+                r.User ? `${r.User.FirstName} ${r.User.LastName}` : '(Unknown)',
                 r.State,
-                r.ClockedBy,
+                r.ClockedBy ? `${r.ClockedBy.FirstName} ${r.ClockedBy.LastName}` : '(System)',
                 r.DateTimeStamp,
-                r.UserTypeYearMonth,
+                r.UserType,
             ]),
         ]
             .map((row) => row.join(','))
@@ -193,6 +177,7 @@ export default function AttendanceReportPage() {
         a.download = `attendance-${format(selectedDate, 'yyyy-MM-dd')}.csv`;
         a.click();
     };
+
 
     return (
         <main className="p-6 max-w-6xl mx-auto space-y-6">
@@ -212,15 +197,10 @@ export default function AttendanceReportPage() {
                         </CardTitle>
 
                         <div className="flex items-center gap-2">
-                            <Button
-                                variant="outline"
-                                onClick={() => setShowCalendar(!showCalendar)}
-                                className="flex items-center gap-2"
-                            >
-                                <CalendarIcon className="w-4 h-4" />
-                                {format(selectedDate, 'PPP')}
-                            </Button>
-
+                            <DatePicker
+                                selectedDate={selectedDate}
+                                setSelectedDate={setSelectedDate}
+                            />
                             <Button onClick={exportCSV} className="flex items-center gap-2">
                                 <Download className="w-4 h-4" /> Export CSV
                             </Button>
@@ -229,20 +209,6 @@ export default function AttendanceReportPage() {
                 </CardHeader>
 
                 <CardContent className="space-y-4">
-                    {showCalendar && (
-                        <div className="border rounded-lg p-3 inline-block">
-                            <Calendar
-                                mode="single"
-                                selected={selectedDate}
-                                onSelect={(date) => {
-                                    if (date) setSelectedDate(date);
-                                    setShowCalendar(false);
-                                }}
-                                initialFocus
-                            />
-                        </div>
-                    )}
-
                     <Tabs
                         value={activeTab}
                         onValueChange={(v) => setActiveTab(v as 'daily' | 'weekly')}
@@ -274,7 +240,6 @@ export default function AttendanceReportPage() {
                                         <SelectValue placeholder="Filter by type" />
                                     </SelectTrigger>
                                     <SelectContent>
-                                        <SelectItem value="all">All Types</SelectItem>
                                         <SelectItem value="staff">Staff</SelectItem>
                                         <SelectItem value="learner">Learner</SelectItem>
                                         <SelectItem value="guardian">Guardian</SelectItem>
@@ -297,34 +262,45 @@ export default function AttendanceReportPage() {
                                     No records found for this day.
                                 </p>
                             ) : (
-                                <div className="overflow-x-auto">
-                                    <table className="min-w-full border border-gray-200 text-sm">
-                                        <thead className="bg-gray-100">
+                                <div className="overflow-x-auto border rounded-lg">
+                                    <table className="min-w-full border-collapse text-sm">
+                                        <thead className="bg-gray-50">
                                         <tr>
-                                            <th className="px-4 py-2 border">Time</th>
-                                            <th className="px-4 py-2 border">User ID</th>
-                                            <th className="px-4 py-2 border">State</th>
-                                            <th className="px-4 py-2 border">Clocked By</th>
-                                            <th className="px-4 py-2 border">User Type</th>
+                                            <th className="px-4 py-2 border text-left">User</th>
+                                            <th className="px-4 py-2 border text-left">State</th>
+                                            <th className="px-4 py-2 border text-left">Clocked By</th>
+                                            <th className="px-4 py-2 border text-left">Type</th>
+                                            <th className="px-4 py-2 border text-left">Timestamp</th>
                                         </tr>
                                         </thead>
                                         <tbody>
-                                        {filteredRecords.map((r, idx) => (
-                                            <tr key={idx} className="hover:bg-gray-50">
-                                                <td className="px-4 py-2 border">
-                                                    {format(
-                                                        new Date(r.DateTimeStamp),
-                                                        'h:mm:ss a'
-                                                    )}
-                                                </td>
-                                                <td className="px-4 py-2 border">{r.UserId}</td>
-                                                <td className="px-4 py-2 border">{r.State}</td>
-                                                <td className="px-4 py-2 border">{r.ClockedBy}</td>
-                                                <td className="px-4 py-2 border">
-                                                    {r.UserTypeYearMonth.split('-')[0]}
+                                        {filteredRecords.length === 0 ? (
+                                            <tr>
+                                                <td colSpan={5} className="text-center p-4 text-gray-500">
+                                                    No records found for this day.
                                                 </td>
                                             </tr>
-                                        ))}
+                                        ) : (
+                                            filteredRecords.map((r, i) => (
+                                                <tr key={i} className="hover:bg-gray-50">
+                                                    <td className="px-4 py-2 border">
+                                                        {r.User
+                                                            ? `${r.User.FirstName} ${r.User.LastName}`
+                                                            : "(Unknown)"}
+                                                    </td>
+                                                    <td className="px-4 py-2 border">{r.State}</td>
+                                                    <td className="px-4 py-2 border">
+                                                        {r.ClockedBy
+                                                            ? `${r.ClockedBy.FirstName} ${r.ClockedBy.LastName}`
+                                                            : "(System)"}
+                                                    </td>
+                                                    <td className="px-4 py-2 border capitalize">{r.UserType}</td>
+                                                    <td className="px-4 py-2 border">
+                                                        {format(new Date(r.DateTimeStamp), "PPpp")}
+                                                    </td>
+                                                </tr>
+                                            ))
+                                        )}
                                         </tbody>
                                     </table>
                                 </div>
