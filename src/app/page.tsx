@@ -187,7 +187,7 @@ export default function PinEntry() {
                                 className={`px-6 py-3 text-xl font-semibold rounded ${
                                     isSelected(user.userId, "In")
                                         ? "bg-green-600 text-white"
-                                        : "bg-gray-200 hover:bg-gray-300"
+                                        : "bg-gray-200 hover:bg-gray-300 border-green-600 border"
                                 }`}
                             >
                                 Clock In
@@ -199,7 +199,7 @@ export default function PinEntry() {
                                 className={`px-6 py-3 text-xl font-semibold rounded ${
                                     isSelected(user.userId, "Out")
                                         ? "bg-red-600 text-white"
-                                        : "bg-gray-200 hover:bg-gray-300"
+                                        : "bg-gray-200 hover:bg-gray-300 border-red-600 border"
                                 }`}
                             >
                                 Clock Out
@@ -235,7 +235,7 @@ export default function PinEntry() {
                                                 className={`px-4 py-2 rounded ${
                                                     isSelected(learner.userId, "In")
                                                         ? "bg-green-600 text-white"
-                                                        : "bg-gray-200 hover:bg-gray-300"
+                                                        : "bg-gray-200 hover:bg-gray-300 border-green-600 border"
                                                 }`}
                                             >
                                                 In
@@ -247,7 +247,7 @@ export default function PinEntry() {
                                                 className={`px-4 py-2 rounded ${
                                                     isSelected(learner.userId, "Out")
                                                         ? "bg-red-600 text-white"
-                                                        : "bg-gray-200 hover:bg-gray-300"
+                                                        : "bg-gray-200 hover:bg-gray-300 border-red-600 border"
                                                 }`}
                                             >
                                                 Out
