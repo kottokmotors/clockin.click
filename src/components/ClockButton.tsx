@@ -30,10 +30,10 @@ export const ClockButton: React.FC<ClockButtonProps> = ({
     const bgClass =
         status === "In"
             ? isDisabled
-                ? "bg-gray-400 cursor-not-allowed opacity-70"
+                ? "bg-gray-400 cursor-not-allowed opacity-70 border-green-600 hover:border-green-700"
                 : "bg-green-600 hover:bg-green-700"
             : isDisabled
-                ? "bg-gray-400 cursor-not-allowed opacity-70"
+                ? "bg-gray-400 cursor-not-allowed opacity-70 border-red-600 hover:border-red-700"
                 : "bg-red-600 hover:bg-red-700";
 
     return (
