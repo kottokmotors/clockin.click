@@ -11,11 +11,31 @@ interface DatePickerProps {
     setSelectedDate: (date: Date) => void;
 }
 
+const LOCAL_STORAGE_KEY = "report-selected-date";
+
 export default function DatePicker({ selectedDate, setSelectedDate }: DatePickerProps) {
     const [showCalendar, setShowCalendar] = useState(false);
     const containerRef = useRef<HTMLDivElement>(null);
 
-    // Close calendar when clicking outside
+    // 🧠 Load persisted date on mount
+    useEffect(() => {
+        const saved = localStorage.getItem(LOCAL_STORAGE_KEY);
+        if (saved) {
+            const parsed = new Date(saved);
+            if (!isNaN(parsed.getTime())) {
+                setSelectedDate(parsed);
+            }
+        }
+    }, [setSelectedDate]);
+
+    // 🗂️ Save selected date when it changes
+    useEffect(() => {
+        if (selectedDate) {
+            localStorage.setItem(LOCAL_STORAGE_KEY, selectedDate.toISOString());
+        }
+    }, [selectedDate]);
+
+    // 🚪 Close calendar when clicking outside
     useEffect(() => {
         function handleClickOutside(event: MouseEvent) {
             if (containerRef.current && !containerRef.current.contains(event.target as Node)) {

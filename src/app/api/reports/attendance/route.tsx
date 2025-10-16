@@ -62,10 +62,9 @@ export async function GET(req: Request) {
 
         const enriched = records.map((r) => ({
             ...r,
-            User: userMap.get(r.userId) ?? null,
-            ClockedByUser: userMap.get(r.clockedBy) ?? null,
+            user: userMap.get(r.userId) ?? null,
+            clockedByUser: userMap.get(r.clockedBy) ?? null,
         }));
-
         return NextResponse.json(enriched);
     } catch (err) {
         console.error("Error querying attendance:", err);

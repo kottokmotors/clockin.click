@@ -1,7 +1,6 @@
 // /app/api/users/[id]/route.ts
 import { NextRequest, NextResponse } from "next/server";
 import { getUserById, deleteUser, updateUser, getAllUsers } from "@/utils/dynamo";
-import { DeleteItemCommand } from "@aws-sdk/client-dynamodb";
 import {User} from "@/types/user";
 
 export async function GET(

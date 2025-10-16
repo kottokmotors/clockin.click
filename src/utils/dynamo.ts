@@ -317,6 +317,7 @@ export async function logTimeClock(
             UserId: { S: userId },
             State: { S: status },
             ClockedBy: { S: clockedById },
+            Id: { S: crypto.randomUUID() },
         },
     };
 
@@ -328,7 +329,7 @@ export async function logTimeClock(
  * @param email - user's email
  * @returns boolean - true if admin
  */
-export const isAdmin = async (email: string): Promise<boolean> => {
+export const getAdminLevel = async (email: string): Promise<string | null> => {
     try {
         const result = await client.send(
             new QueryCommand({
@@ -342,13 +343,17 @@ export const isAdmin = async (email: string): Promise<boolean> => {
             })
         );
 
-        if (!result.Items || result.Items.length === 0) return false;
+        if (!result.Items || result.Items.length === 0) return null;
 
         const user = await unmarshallUser(result.Items[0]);
-        return user.roles.includes("administrator");
+        return user.roles.includes("administrator")
+            ? user.adminLevel === "edit"
+                ? "edit"
+                : "read-only"
+            : null;
     } catch (err) {
         console.error("Error checking admin:", err);
-        return false;
+        return null;
     }
 };
 
@@ -442,7 +447,6 @@ export const batchGetUsersByIds = async (userIds: string[]): Promise<Map<string,
 
     const uniqueIds = [...new Set(userIds)];
     const userMap = new Map<string, User>();
-    console.log(userIds)
 
     const chunk = <T>(arr: T[], size: number): T[][] => {
         const res: T[][] = [];
@@ -458,7 +462,6 @@ export const batchGetUsersByIds = async (userIds: string[]): Promise<Map<string,
                 },
             },
         };
-        console.log(params);
 
         const response = await client.send(new BatchGetItemCommand(params));
         const rawUsers = response.Responses?.[USERS_TABLE] ?? [];

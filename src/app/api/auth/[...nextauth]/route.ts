@@ -1,6 +1,6 @@
 import NextAuth, {AuthOptions} from "next-auth";
 import GoogleProvider from "next-auth/providers/google";
-import {isAdmin} from "@/utils/dynamo";
+import {getAdminLevel} from "@/utils/dynamo";
 
 export const authOptions: AuthOptions = {
     providers: [
@@ -13,21 +13,23 @@ export const authOptions: AuthOptions = {
         async signIn({ user }) {
             if (!user?.email) {
                 console.warn("Sign in failed: no email provided");
-                return false; // reject login
+                return false; // must return boolean, not null
             }
 
             const email = user.email;
-            const authorized = await isAdmin(email);
+            const adminLevel = await getAdminLevel(email);
 
-            if (!authorized) {
+            if (!adminLevel) {
                 console.warn(`Unauthorized login attempt: ${email}`);
+                return false; // reject login
             }
 
-            return authorized; // only allow login if admin
+            return true; // allow login
         },
         async session({ session }) {
             // optional: add isAdmin flag to session
             session.user.isAdmin = true;
+            session.user.adminLevel = session.user.email ? await getAdminLevel(session.user.email) : null;
             return session;
         },
     },

@@ -1,10 +1,12 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
-import { Calendar } from "@/components/ui/calendar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { format } from "date-fns";
+import { Download } from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import DatePicker from "@/components/DatePicker";
 
 type BaseUser = {
     userId: string;
@@ -19,27 +21,66 @@ type AttendanceRecord = {
     state: string;
     dateTimeStamp: string;
     userType: string;
+    clockedByUser: BaseUser | null;
 };
 
+const LOCAL_DATE_STORAGE_KEY = "report-selected-date";
+const LOCAL_TYPE_STORAGE_KEY = "report-user-type";
+
 export default function DailyReport() {
+
+
     const [records, setRecords] = useState<AttendanceRecord[]>([]);
-    const [selectedDate, setSelectedDate] = useState<Date>(new Date());
-    const [showCalendar, setShowCalendar] = useState(false);
+    const [selectedDate, setSelectedDate] = useState<Date>(() => {
+        if (typeof window !== "undefined") {
+            const savedDate = localStorage.getItem(LOCAL_DATE_STORAGE_KEY);
+            if (savedDate) {
+                const parsed = new Date(savedDate);
+                if (!isNaN(parsed.getTime())) {
+                    return parsed;
+                }
+            }
+        }
+        return new Date();
+    });
     const [query, setQuery] = useState("");
+    const [loading, setLoading] = useState(false);
+    const [userTypeFilter, setUserTypeFilter] = useState(() => {
+        if (typeof window !== "undefined") {
+            const savedType = localStorage.getItem(LOCAL_TYPE_STORAGE_KEY);
+            if (savedType) {
+                return savedType;
+            }
+        }
+        return "staff";
+    });
 
     useEffect(() => {
-        const loadData = async () => {
-            const dateStr = format(selectedDate, "yyyy-MM-dd");
-            const res = await fetch(`/api/attendance?date=${dateStr}`);
-            if (res.ok) {
-                const data: AttendanceRecord[] = await res.json();
+        const fetchRecords = async () => {
+            setLoading(true);
+            try {
+                const formattedDate = format(selectedDate, 'yyyy-MM-dd');
+                const res = await fetch(`/api/reports/attendance?date=${formattedDate}&userType=${userTypeFilter}`);
+                const data = await res.json();
                 setRecords(data);
-            } else {
-                setRecords([]);
+            } catch (err) {
+                console.error('Error fetching attendance:', err);
+            } finally {
+                setLoading(false);
             }
         };
-        loadData();
+
+        fetchRecords();
+    }, [selectedDate, userTypeFilter]);
+
+    // ✅ Persist changes
+    useEffect(() => {
+        localStorage.setItem(LOCAL_DATE_STORAGE_KEY, selectedDate.toISOString());
     }, [selectedDate]);
+
+    useEffect(() => {
+        localStorage.setItem(LOCAL_TYPE_STORAGE_KEY, userTypeFilter);
+    }, [userTypeFilter]);
 
     const filtered = records
         .filter((r) => {
@@ -58,28 +99,56 @@ export default function DailyReport() {
                 new Date(b.dateTimeStamp).getTime()
         );
 
+    // ---------------- CSV Export ----------------
+    const exportCSV = () => {
+        const csv = [
+            ['User', 'State', 'Clocked By', 'DateTimeStamp', 'User Type'],
+            ...filtered.map((r) => [
+                r.user ? `${r.user.firstName} ${r.user.lastName}` : '(Unknown)',
+                r.state,
+                r.clockedByUser ? `${r.clockedByUser?.firstName} ${r.clockedByUser?.lastName}` : '(System)',
+                r.dateTimeStamp,
+                userTypeFilter,
+            ]),
+        ]
+            .map((row) => row.join(','))
+            .join('\n');
+
+        const blob = new Blob([csv], { type: 'text/csv' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `attendance-${format(selectedDate, 'yyyy-MM-dd')}.csv`;
+        a.click();
+    };
+
+
     return (
         <div className="p-6 space-y-4">
-            <div className="flex items-center gap-3">
-                <Button variant="outline" onClick={() => setShowCalendar(!showCalendar)}>
-                    {format(selectedDate, "PPP")}
-                </Button>
+            <div className="flex flex-wrap gap-3 items-center">
 
-                {showCalendar && (
-                    <div className="border rounded-lg p-4 absolute z-50 bg-white shadow-lg">
-                        <div className="w-[320px]">
-                            <Calendar
-                                mode="single"
-                                selected={selectedDate}
-                                onSelect={(date) => {
-                                    if (date) setSelectedDate(date);
-                                    setShowCalendar(false);
-                                }}
-                                initialFocus
-                            />
-                        </div>
-                    </div>
-                )}
+            </div>
+            <div className="flex items-center gap-3">
+                <div className="flex items-center gap-2">
+                    <DatePicker
+                        selectedDate={selectedDate}
+                        setSelectedDate={setSelectedDate}
+                    />
+                </div>
+
+                <Select
+                    value={userTypeFilter}
+                    onValueChange={setUserTypeFilter}
+                >
+                    <SelectTrigger className="w-40">
+                        <SelectValue placeholder="Filter by type" />
+                    </SelectTrigger>
+                    <SelectContent>
+                        <SelectItem value="staff">Staff</SelectItem>
+                        <SelectItem value="learner">Learner</SelectItem>
+                        <SelectItem value="volunteer">Volunteer</SelectItem>
+                    </SelectContent>
+                </Select>
 
                 <Input
                     placeholder="Search name..."
@@ -87,9 +156,13 @@ export default function DailyReport() {
                     onChange={(e) => setQuery(e.target.value)}
                     className="w-60"
                 />
+                <Button onClick={exportCSV} className="flex items-center gap-2">
+                    <Download className="w-4 h-4" /> Export CSV
+                </Button>
             </div>
 
             <div className="overflow-x-auto border rounded-lg">
+
                 <table className="min-w-full border-collapse text-sm">
                     <thead className="bg-gray-50">
                     <tr>
@@ -101,7 +174,13 @@ export default function DailyReport() {
                     </tr>
                     </thead>
                     <tbody>
-                    {filtered.length === 0 ? (
+                    {loading ? (
+                        <tr>
+                            <td colSpan={5} className="text-center text-gray-500 py-4">
+                                Loading records...
+                            </td>
+                        </tr>
+                    ) : filtered.length === 0 ? (
                         <tr>
                             <td colSpan={5} className="text-center p-4 text-gray-500">
                                 No records found for this day.
@@ -109,23 +188,43 @@ export default function DailyReport() {
                         </tr>
                     ) : (
                         filtered.map((r, i) => (
-                            <tr key={i} className="hover:bg-gray-50">
+                            <tr
+                                key={i}
+                                className="hover:bg-gray-50 transition-all duration-500 ease-in-out"
+                            >
                                 <td className="px-4 py-2 border">
                                     {r.user
                                         ? `${r.user.firstName} ${r.user.lastName}`
                                         : "(Unknown)"}
                                 </td>
-                                <td className="px-4 py-2 border">{r.state}</td>
+
+                                {/* State cell — color-coded */}
+                                <td
+                                    className={`px-4 py-2 border font-semibold text-center rounded transition-all duration-500 ease-in-out
+      ${
+                                        r.state?.toLowerCase() === "in"
+                                            ? "bg-green-50 text-green-900 hover:bg-green-200 border-green-300"
+                                            : r.state?.toLowerCase() === "out"
+                                                ? "bg-red-50 text-red-900 hover:bg-red-200 border-red-300"
+                                                : "bg-gray-50 text-gray-700"
+                                    }`}
+                                >
+                                    {r.state}
+                                </td>
+
                                 <td className="px-4 py-2 border">
-                                    {r.clockedBy
-                                        ? `${r.clockedBy.firstName} ${r.clockedBy.lastName}`
+                                    {r.clockedByUser
+                                        ? `${r.clockedByUser.firstName} ${r.clockedByUser.lastName}`
                                         : "(System)"}
                                 </td>
-                                <td className="px-4 py-2 border capitalize">{r.userType}</td>
+
+                                <td className="px-4 py-2 border capitalize">{userTypeFilter}</td>
+
                                 <td className="px-4 py-2 border">
                                     {format(new Date(r.dateTimeStamp), "PPpp")}
                                 </td>
                             </tr>
+
                         ))
                     )}
                     </tbody>

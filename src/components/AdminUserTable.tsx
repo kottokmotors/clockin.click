@@ -13,6 +13,7 @@ import Select, {MultiValue} from "react-select";
 import {Transition} from "@headlessui/react"
 import { FaEdit, FaTrash } from "react-icons/fa";
 import {Spinner} from "@/components/Spinner";
+import { useSession } from "next-auth/react";
 
 interface Props {
     users: User[];
@@ -44,6 +45,8 @@ export default function AdminUserTable({ users }: Props) {
     const [isSaving, setIsSaving] = useState(false);
     const [sortConfig, setSortConfig] = useState<{ key: string; direction: "asc" | "desc" }>({key: "name", direction: "asc"});
     const [searchQuery, setSearchQuery] = useState("");
+    const { data: session } = useSession();
+    const canEdit = session ? session.user.adminLevel === "edit" : false;
 
 
     // --- Populate state when user changes ---
@@ -90,7 +93,7 @@ export default function AdminUserTable({ users }: Props) {
     const sortUsers = (users: User[], config: typeof sortConfig): User[] => {
         if (!config) return users;
 
-        const sorted = [...users].sort((a, b) => {
+        return [...users].sort((a, b) => {
             let aValue: string | number = "";
             let bValue: string | number = "";
 
@@ -115,8 +118,6 @@ export default function AdminUserTable({ users }: Props) {
             if (aValue > bValue) return config.direction === "asc" ? 1 : -1;
             return 0;
         });
-
-        return sorted;
     };
 
 
@@ -357,12 +358,14 @@ export default function AdminUserTable({ users }: Props) {
             </div>
 
             <div className="flex items-center justify-between mb-4">
+                {canEdit &&
                 <button
                     onClick={handleAddUser}
                     className="px-4 py-2 rounded-lg bg-green-600 text-white hover:bg-green-700"
                 >
                     Add New User
                 </button>
+                }
 
                 <div className="relative w-64">
                     <input
@@ -466,7 +469,7 @@ export default function AdminUserTable({ users }: Props) {
                         <th className="px-6 py-3 text-left font-semibold">PIN</th>
                         <th className="px-6 py-3 text-left font-semibold">Admin Level</th>
                         <th className="px-6 py-3 text-left font-semibold">Learners</th>
-                        <th className="px-6 py-3 text-left font-semibold">Actions</th>
+                        {canEdit && <th className="px-6 py-3 text-left font-semibold">Actions</th>}
                     </tr>
                     </thead>
 
@@ -482,6 +485,7 @@ export default function AdminUserTable({ users }: Props) {
                             <td className="px-6 py-3 font-mono text-gray-600">{u.pin ?? "-"}</td>
                             <td className="px-6 py-3">{formatAdminLevel(u)}</td>
                             <td className="px-6 py-3">{formatLearners(u)}</td>
+                            {canEdit &&
                             <td className="px-6 py-3">
                                 <div className="flex gap-2">
                                     {/* Edit Button */}
@@ -503,6 +507,7 @@ export default function AdminUserTable({ users }: Props) {
                                     </button>
                                 </div>
                             </td>
+                            }
                         </tr>
                     ))}
                     </tbody>
