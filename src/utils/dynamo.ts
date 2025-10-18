@@ -2,18 +2,24 @@ import {
     DynamoDBClient,
     GetItemCommand,
     QueryCommand,
+    QueryCommandInput,
+    QueryCommandOutput,
     PutItemCommand,
     UpdateItemCommand,
     UpdateItemCommandInput,
     AttributeValue,
     ScanCommand,
-    ScanCommandOutput, DeleteItemCommand
+    ScanCommandOutput,
+    DeleteItemCommand,
+    BatchGetItemCommand
 } from "@aws-sdk/client-dynamodb";
 import { isGuardian, BaseUser, GuardianUser, RegularUser, User } from "@/types/user";
+import { TimeAttendanceRecord, RawTimeAttendanceItem} from "@/types/attendance";
 
 export const client = new DynamoDBClient({ region: process.env.AWS_REGION });
 export const USERS_TABLE = `clockinclick-${process.env.SCHOOL_NAME}-Users` || "users";
 export const TIME_ATTENDANCE_TABLE = `clockinclick-${process.env.SCHOOL_NAME}-TimeAttendance`;
+
 
 // ---------- Helpers ----------
 const getString = (val?: AttributeValue): string | undefined =>
@@ -311,6 +317,7 @@ export async function logTimeClock(
             UserId: { S: userId },
             State: { S: status },
             ClockedBy: { S: clockedById },
+            Id: { S: crypto.randomUUID() },
         },
     };
 
@@ -322,7 +329,7 @@ export async function logTimeClock(
  * @param email - user's email
  * @returns boolean - true if admin
  */
-export const isAdmin = async (email: string): Promise<boolean> => {
+export const getAdminLevel = async (email: string): Promise<string | null> => {
     try {
         const result = await client.send(
             new QueryCommand({
@@ -336,13 +343,17 @@ export const isAdmin = async (email: string): Promise<boolean> => {
             })
         );
 
-        if (!result.Items || result.Items.length === 0) return false;
+        if (!result.Items || result.Items.length === 0) return null;
 
         const user = await unmarshallUser(result.Items[0]);
-        return user.roles.includes("administrator");
+        return user.roles.includes("administrator")
+            ? user.adminLevel === "edit"
+                ? "edit"
+                : "read-only"
+            : null;
     } catch (err) {
         console.error("Error checking admin:", err);
-        return false;
+        return null;
     }
 };
 
@@ -397,4 +408,78 @@ export const deleteUser = async (userId: string): Promise<void> => {
             Key: { UserId: { S: userId } },
         })
     );
+}
+
+/**
+ * Query all pages from DynamoDB until no more results remain.
+ * Returns an array of Items (raw AttributeValue maps).
+ */
+export const queryAllAttendance = async <RawTimeAttendanceItem>(
+    params: QueryCommandInput
+): Promise<RawTimeAttendanceItem[]> => {
+    const items: RawTimeAttendanceItem[] = [];
+    let lastEvaluatedKey: Record<string, AttributeValue> | undefined = undefined;
+
+    do {
+        const response: QueryCommandOutput = await client.send(
+            new QueryCommand({
+                ...params,
+                ExclusiveStartKey: lastEvaluatedKey,
+            })
+        );
+
+        if (response.Items) {
+            items.push(...(response.Items as RawTimeAttendanceItem[]));
+        }
+
+        lastEvaluatedKey = response.LastEvaluatedKey;
+    } while (lastEvaluatedKey);
+
+    return items;
+};
+
+/**
+ * Batch get multiple users by their UserIds.
+ * Automatically chunks requests into batches of 100 keys.
+ */
+export const batchGetUsersByIds = async (userIds: string[]): Promise<Map<string, User>> => {
+    if (!userIds.length) return new Map();
+
+    const uniqueIds = [...new Set(userIds)];
+    const userMap = new Map<string, User>();
+
+    const chunk = <T>(arr: T[], size: number): T[][] => {
+        const res: T[][] = [];
+        for (let i = 0; i < arr.length; i += size) res.push(arr.slice(i, i + size));
+        return res;
+    };
+
+    for (const batch of chunk(uniqueIds, 100)) {
+        const params = {
+            RequestItems: {
+                [USERS_TABLE]: {
+                    Keys: batch.map((id) => ({ UserId: { S: id } })),
+                },
+            },
+        };
+
+        const response = await client.send(new BatchGetItemCommand(params));
+        const rawUsers = response.Responses?.[USERS_TABLE] ?? [];
+
+        const unmarshalled = await Promise.all(rawUsers.map(unmarshallUser));
+        unmarshalled.forEach((u) => userMap.set(u.userId, u));
+    }
+    return userMap;
+};
+
+export function unmarshallTimeAttendance(
+    item: RawTimeAttendanceItem
+): TimeAttendanceRecord {
+    return {
+        userTypeYearMonth: item.UserTypeYearMonth.S ?? "",
+        dateTimeStamp: item.DateTimeStamp.S ?? "",
+        userId: item.UserId.S ?? "",
+        state: item.State.S ?? "",
+        clockedBy: item.ClockedBy.S ?? "",
+    };
 }

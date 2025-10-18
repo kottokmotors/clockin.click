@@ -72,10 +72,27 @@ resource "aws_dynamodb_table" "time_attendance" {
     type = "S"
   }
 
+  attribute {
+    name = "Id"
+    type = "S"
+  }
+
   global_secondary_index {
     name            = "UserIdIndex"
     hash_key        = "UserId"
     range_key       = "DateTimeStamp" # <-- added sort key
+    projection_type = "ALL"
+  }
+
+  global_secondary_index {
+    name               = "DateTimeStamp-index"
+    hash_key           = "DateTimeStamp"
+    projection_type    = "ALL"
+  }
+
+  global_secondary_index {
+    hash_key        = "Id"
+    name            = "Id-index"
     projection_type = "ALL"
   }
 

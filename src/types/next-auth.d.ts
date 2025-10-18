@@ -5,6 +5,7 @@ declare module "next-auth" {
         user: {
             /** Add custom field */
             isAdmin?: boolean;
+            adminLevel?: string | null;
         } & DefaultSession["user"];
     }
 }
