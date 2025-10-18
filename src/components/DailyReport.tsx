@@ -1,12 +1,12 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
-import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { format } from "date-fns";
-import { Download } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import DatePicker from "@/components/DatePicker";
+import AttendanceTable from "@/components/AttendanceTable";
+import DownloadCSVButton from "@/components/DownloadCsvButton";
 
 type BaseUser = {
     userId: string;
@@ -99,30 +99,6 @@ export default function DailyReport() {
                 new Date(b.dateTimeStamp).getTime()
         );
 
-    // ---------------- CSV Export ----------------
-    const exportCSV = () => {
-        const csv = [
-            ['User', 'State', 'Clocked By', 'DateTimeStamp', 'User Type'],
-            ...filtered.map((r) => [
-                r.user ? `${r.user.firstName} ${r.user.lastName}` : '(Unknown)',
-                r.state,
-                r.clockedByUser ? `${r.clockedByUser?.firstName} ${r.clockedByUser?.lastName}` : '(System)',
-                r.dateTimeStamp,
-                userTypeFilter,
-            ]),
-        ]
-            .map((row) => row.join(','))
-            .join('\n');
-
-        const blob = new Blob([csv], { type: 'text/csv' });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `attendance-${format(selectedDate, 'yyyy-MM-dd')}.csv`;
-        a.click();
-    };
-
-
     return (
         <div className="p-6 space-y-4">
             <div className="flex flex-wrap gap-3 items-center">
@@ -156,79 +132,72 @@ export default function DailyReport() {
                     onChange={(e) => setQuery(e.target.value)}
                     className="w-60"
                 />
-                <Button onClick={exportCSV} className="flex items-center gap-2">
-                    <Download className="w-4 h-4" /> Export CSV
-                </Button>
+                <DownloadCSVButton
+                    columns={['User', 'State', 'Clocked By', 'DateTimeStamp', 'User Type']}
+                    rows={filtered.map((r) => [
+                        r.user ? `${r.user.firstName} ${r.user.lastName}` : "(Unknown)",
+                        r.state,
+                        r.clockedByUser ? `${r.clockedByUser.firstName} ${r.clockedByUser.lastName}` : "(System)",
+                        r.dateTimeStamp,
+                        userTypeFilter,
+                    ])}
+                    fileName={`attendance-${format(selectedDate, "yyyy-MM-dd")}.csv`}
+                    className="flex items-center gap-2"
+                />
+
             </div>
 
             <div className="overflow-x-auto border rounded-lg">
 
-                <table className="min-w-full border-collapse text-sm">
-                    <thead className="bg-gray-50">
-                    <tr>
-                        <th className="px-4 py-2 border text-left">User</th>
-                        <th className="px-4 py-2 border text-left">State</th>
-                        <th className="px-4 py-2 border text-left">Clocked By</th>
-                        <th className="px-4 py-2 border text-left">Type</th>
-                        <th className="px-4 py-2 border text-left">Timestamp</th>
-                    </tr>
-                    </thead>
-                    <tbody>
-                    {loading ? (
-                        <tr>
-                            <td colSpan={5} className="text-center text-gray-500 py-4">
-                                Loading records...
-                            </td>
-                        </tr>
-                    ) : filtered.length === 0 ? (
-                        <tr>
-                            <td colSpan={5} className="text-center p-4 text-gray-500">
-                                No records found for this day.
-                            </td>
-                        </tr>
-                    ) : (
-                        filtered.map((r, i) => (
-                            <tr
-                                key={i}
-                                className="hover:bg-gray-50 transition-all duration-500 ease-in-out"
-                            >
-                                <td className="px-4 py-2 border">
-                                    {r.user
-                                        ? `${r.user.firstName} ${r.user.lastName}`
-                                        : "(Unknown)"}
-                                </td>
-
-                                {/* State cell — color-coded */}
-                                <td
-                                    className={`px-4 py-2 border font-semibold text-center rounded transition-all duration-500 ease-in-out
-      ${
+                <AttendanceTable
+                    data={filtered}
+                    loading={loading}
+                    columns={[
+                        {
+                            key: "user",
+                            label: "User",
+                            render: (r) =>
+                                r.user ? `${r.user.firstName} ${r.user.lastName}` : "(Unknown)",
+                        },
+                        {
+                            key: "state",
+                            label: "State",
+                            render: (r) => (
+                                <span
+                                    className={`px-2 py-1 rounded font-semibold ${
                                         r.state?.toLowerCase() === "in"
-                                            ? "bg-green-50 text-green-900 hover:bg-green-200 border-green-300"
+                                            ? "bg-green-50 text-green-900"
                                             : r.state?.toLowerCase() === "out"
-                                                ? "bg-red-50 text-red-900 hover:bg-red-200 border-red-300"
+                                                ? "bg-red-50 text-red-900"
                                                 : "bg-gray-50 text-gray-700"
                                     }`}
                                 >
-                                    {r.state}
-                                </td>
-
-                                <td className="px-4 py-2 border">
-                                    {r.clockedByUser
-                                        ? `${r.clockedByUser.firstName} ${r.clockedByUser.lastName}`
-                                        : "(System)"}
-                                </td>
-
-                                <td className="px-4 py-2 border capitalize">{userTypeFilter}</td>
-
-                                <td className="px-4 py-2 border">
-                                    {format(new Date(r.dateTimeStamp), "PPpp")}
-                                </td>
-                            </tr>
-
-                        ))
-                    )}
-                    </tbody>
-                </table>
+          {r.state}
+        </span>
+                            ),
+                            className: "text-center",
+                        },
+                        {
+                            key: "clockedByUser",
+                            label: "Clocked By",
+                            render: (r) =>
+                                r.clockedByUser
+                                    ? `${r.clockedByUser.firstName} ${r.clockedByUser.lastName}`
+                                    : "(System)",
+                        },
+                        {
+                            key: "userType",
+                            label: "Type",
+                            render: () => userTypeFilter,
+                            className: "capitalize",
+                        },
+                        {
+                            key: "dateTimeStamp",
+                            label: "Timestamp",
+                            render: (r) => format(new Date(r.dateTimeStamp), "PPpp"),
+                        },
+                    ]}
+                />
             </div>
         </div>
     );

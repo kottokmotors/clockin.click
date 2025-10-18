@@ -383,6 +383,43 @@ export const getAllUsers = async (): Promise<User[]> => {
     return users;
 };
 
+/**
+ * Fetch users filtered by one or more roles.
+ * Example: await getUsersByRoles(["staff", "learner", "volunteer"])
+ */
+export const getUsersByRoles = async (roles: string[]): Promise<User[]> => {
+    if (!roles || roles.length === 0) {
+        return getAllUsers();
+    }
+
+    const normalizedRoles = roles.map((r) => r.toLowerCase());
+    let users: User[] = [];
+    let lastEvaluatedKey: Record<string, AttributeValue> | undefined = undefined;
+
+    do {
+        const result: ScanCommandOutput = await client.send(
+            new ScanCommand({
+                TableName: USERS_TABLE,
+                ExclusiveStartKey: lastEvaluatedKey,
+            })
+        );
+
+        if (result.Items) {
+            const batch = await Promise.all(result.Items.map(unmarshallUser));
+            const filtered = batch.filter((u) =>
+                u.roles?.some((role) =>
+                    normalizedRoles.includes(role.toLowerCase())
+                )
+            );
+            users = users.concat(filtered);
+        }
+
+        lastEvaluatedKey = result.LastEvaluatedKey;
+    } while (lastEvaluatedKey);
+
+    return users;
+};
+
 export const updateUser = async (userId: string, updates: Partial<User>): Promise<User | null> => {
     // Build the DynamoDB update command
     const updateCommand: Omit<UpdateItemCommandInput, "TableName"> = marshallUserUpdate(userId, updates);

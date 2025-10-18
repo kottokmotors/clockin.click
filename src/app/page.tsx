@@ -9,7 +9,6 @@ export default function PinEntry() {
     const [user, setUser] = useState<User | null>(null);
     const [error, setError] = useState("");
     const [loading, setLoading] = useState(false);
-    const [loadingAction, setLoadingAction] = useState<string | null>(null);
     const [selectedActions, setSelectedActions] = useState<
         { userId: string; status: "In" | "Out"; type: string; actorId: string }[]
     >([]);
@@ -78,7 +77,6 @@ export default function PinEntry() {
         }
 
         setLoading(true);
-        setLoadingAction("batch");
         setError("");
 
         try {
@@ -113,7 +111,6 @@ export default function PinEntry() {
             setError("One or more updates failed.");
         } finally {
             setLoading(false);
-            setLoadingAction(null);
             clearPin();
             setUser(null);
         }
