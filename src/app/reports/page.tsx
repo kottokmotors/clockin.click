@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import DailyReport from "@/components/DailyReport";
+import WeeklyReport from "@/components/WeeklyReport";
 
 export default function AttendanceReportPage() {
     const [activeTab, setActiveTab] = useState<'daily' | 'weekly'>('daily');
@@ -56,7 +57,7 @@ export default function AttendanceReportPage() {
 
                         {/* WEEKLY TAB */}
                         <TabsContent value="weekly">
-
+                            <WeeklyReport />
                         </TabsContent>
                     </Tabs>
                 </CardContent>

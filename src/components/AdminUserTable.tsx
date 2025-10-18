@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo, useRef, RefObject } from "react";
+import {useState, useEffect, useMemo, useRef, RefObject, useCallback} from "react";
 import {RegularUser, User} from "@/types/user";
 import {
     formatFullName,
@@ -72,13 +72,6 @@ export default function AdminUserTable({ users }: Props) {
         setRoleFilter(roles);
     }, [users]);
 
-    useEffect(() => {
-        if (sortConfig) {
-            setAllUsers((prev) => sortUsers(prev, sortConfig));
-        }
-    }, [users]); // Re-run when new users prop comes in
-
-
     const handleSort = (key: string) => {
         setSortConfig((prev) => {
             if (prev && prev.key === key) {
@@ -90,41 +83,50 @@ export default function AdminUserTable({ users }: Props) {
         });
     };
 
-    const sortUsers = (users: User[], config: typeof sortConfig): User[] => {
-        if (!config) return users;
+    const sortUsers = useCallback(
+        (users: User[], config: typeof sortConfig): User[] => {
+            if (!config) return users;
 
-        return [...users].sort((a, b) => {
-            let aValue: string | number = "";
-            let bValue: string | number = "";
+            return [...users].sort((a, b) => {
+                let aValue: string | number = "";
+                let bValue: string | number = "";
 
-            switch (config.key) {
-                case "name":
-                    aValue = `${a.lastName ?? ""} ${a.firstName ?? ""}`.toLowerCase();
-                    bValue = `${b.lastName ?? ""} ${b.firstName ?? ""}`.toLowerCase();
-                    break;
-                case "email":
-                    aValue = (a.email ?? "").toLowerCase();
-                    bValue = (b.email ?? "").toLowerCase();
-                    break;
-                case "pin":
-                    aValue = a.pin ?? "";
-                    bValue = b.pin ?? "";
-                    break;
-                default:
-                    return 0;
-            }
+                switch (config.key) {
+                    case "name":
+                        aValue = `${a.lastName ?? ""} ${a.firstName ?? ""}`.toLowerCase();
+                        bValue = `${b.lastName ?? ""} ${b.firstName ?? ""}`.toLowerCase();
+                        break;
+                    case "email":
+                        aValue = (a.email ?? "").toLowerCase();
+                        bValue = (b.email ?? "").toLowerCase();
+                        break;
+                    case "pin":
+                        aValue = a.pin ?? "";
+                        bValue = b.pin ?? "";
+                        break;
+                    default:
+                        return 0;
+                }
 
-            if (aValue < bValue) return config.direction === "asc" ? -1 : 1;
-            if (aValue > bValue) return config.direction === "asc" ? 1 : -1;
-            return 0;
-        });
-    };
+                if (aValue < bValue) return config.direction === "asc" ? -1 : 1;
+                if (aValue > bValue) return config.direction === "asc" ? 1 : -1;
+                return 0;
+            });
+        },
+        [] // memoize based on the current sortConfig
+    );
 
+
+    useEffect(() => {
+        if (sortConfig) {
+            setAllUsers((prev) => sortUsers(prev, sortConfig));
+        }
+    }, [users, sortConfig, sortUsers]); // Re-run when new users prop comes in
 
     // Filter users based on selected roles
     const filteredUsers = useMemo(() => {
         const activeRoles = Object.entries(roleFilter)
-            .filter(([_, checked]) => checked)
+            .filter(([, checked]) => checked)
             .map(([role]) => role);
 
         let result = allUsers.filter((u) => u.roles.some((r) => activeRoles.includes(r)));
@@ -142,7 +144,7 @@ export default function AdminUserTable({ users }: Props) {
         result = sortUsers(result, sortConfig);
 
         return result;
-    }, [allUsers, roleFilter, sortConfig, searchQuery]);
+    }, [allUsers, roleFilter, sortConfig, searchQuery, sortUsers]);
 
 
 
